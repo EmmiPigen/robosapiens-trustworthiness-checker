@@ -3,17 +3,18 @@ use std::fmt;
 
 use anyhow::{Error, anyhow};
 use ecow::EcoVec;
+// use lalrpop_util::ParseError;
 use tracing::debug;
 
 use super::lalr::{ExprParser, TopDeclParser, TopDeclsParser};
 use crate::lang::core::parser::{ExprParser as EParserTrait, SpecParser as SParserTrait};
-use crate::{DsrvSpecification, SExpr, lang::dsrv::ast::STopDecl};
+use crate::{DsrvSpecification, lang::dsrv::ast::{STopDecl, SpannedExpr}};
 
 #[derive(Clone)]
 pub struct LALRParser;
 
-impl EParserTrait<SExpr> for LALRParser {
-    fn parse(input: &mut &str) -> anyhow::Result<SExpr> {
+impl EParserTrait<SpannedExpr> for LALRParser {
+    fn parse(input: &mut &str) -> anyhow::Result<SpannedExpr> {
         debug!("Parsing expr: {}", input);
         parse_sexpr(input)
     }
@@ -23,9 +24,14 @@ impl SParserTrait<DsrvSpecification> for LALRParser {
         debug!("Parsing expr: {}", input);
         parse_str(input)
     }
+        //Could'nt get this to give an not anyhow error, so just return anyhow error for now. Would try again to get a more usefull error for the Language server if i have more type, for now i would just use the winnow parser then
+    type Error = anyhow::Error;
+    fn raw_parse_error(input: &mut &str) -> Result<SpannedExpr, Self::Error> {
+        parse_sexpr(input)
+    }
 }
 
-pub fn parse_sexpr<'input>(input: &'input str) -> Result<SExpr, Error> {
+pub fn parse_sexpr<'input>(input: &'input str) -> Result<SpannedExpr, Error> {
     ExprParser::new()
         .parse(input)
         .map_err(|e| anyhow!("Parse error: {:?}", e))
