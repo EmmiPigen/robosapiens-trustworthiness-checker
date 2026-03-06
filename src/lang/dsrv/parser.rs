@@ -20,10 +20,17 @@ pub use winnow::ascii::dec_uint as uint;
 #[derive(Clone)]
 pub struct CombExprParser;
 
-impl ExprParser<SExpr> for CombExprParser {
-    fn parse(input: &mut &str) -> anyhow::Result<SExpr> {
+//Main expression parser that combines all the different expression types
+impl ExprParser<SpannedExpr> for CombExprParser {
+    fn parse(input: &mut &str) -> anyhow::Result<SpannedExpr> {
         debug!("Parsing expr: {}", input);
         dsrv_expression(input).map_err(|e| anyhow::anyhow!(e))
+    }
+
+    //Added for better errors in the language Server
+    type Error = winnow::error::ContextError;
+    fn raw_parse_error(input: &mut &str) -> Result<SpannedExpr, Self::Error> {
+        dsrv_expression(input)
     }
 }
 
@@ -32,50 +39,71 @@ pub fn dsrv_expression(s: &mut &str) -> Result<SExpr> {
     sexpr.parse_next(s)
 }
 
-fn paren(s: &mut &str) -> Result<SExpr> {
-    delimited('(', sexpr, ')').parse_next(s)
+fn paren(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    delimited('(', |i: &mut &str| sexpr_with_source(source, i), ')').parse_next(s)
 }
 
 // Used for Lists in output streams
-fn sexpr_list(s: &mut &str) -> Result<SExpr> {
-    let res: Result<Vec<SExpr>, _> = delimited(
+fn sexpr_list(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+
+    let res: Result<Vec<SpannedExpr>, _> = delimited(
         seq!("List", loop_ms_or_lb_or_lc, '('),
         separated(
             0..,
-            sexpr,
+            |i: &mut &str| sexpr_with_source(source, i),
             seq!(loop_ms_or_lb_or_lc, ',', loop_ms_or_lb_or_lc),
         ),
         ')',
     )
     .parse_next(s);
     match res {
-        Ok(exprs) => Ok(SExpr::List(exprs.into())),
+        Ok(exprs) => {
+            let end_rest = *s;
+            Ok(span_wrapper_winnow(
+                source,
+                start_rest,
+                end_rest,
+                SExpr::List(exprs.into()),
+            ))
+        }
         Err(e) => Err(e),
     }
 }
 
-pub fn key_sexpr(s: &mut &str) -> Result<(EcoString, SExpr)> {
-    seq!(_: loop_ms_or_lb_or_lc, string, _: ':', _: loop_ms_or_lb_or_lc, sexpr,)
-        .map(|(key, value)| (key.into(), value))
-        .parse_next(s)
+pub fn key_sexpr(source: &str, s: &mut &str) -> Result<(EcoString, SpannedExpr)> {
+    let start_rest = *s;
+    seq!(
+        _: loop_ms_or_lb_or_lc, string,
+        _: ':',
+        _: loop_ms_or_lb_or_lc,
+        |i: &mut &str| sexpr_with_source(source, i),
+    )
+    .map(|(key, value)| (key.into(), value))
+    .parse_next(s)
 }
 
 // Used for Maps in output streams
-fn sexpr_map(s: &mut &str) -> Result<SExpr> {
-    let res: Result<Vec<(EcoString, SExpr)>> = delimited(
+fn sexpr_map(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let exprs: Vec<(EcoString, SpannedExpr)> = delimited(
         seq!("Map", loop_ms_or_lb_or_lc, '('),
         separated(
             0..,
-            key_sexpr,
+            |i: &mut &str| key_sexpr(source, i),
             seq!(loop_ms_or_lb_or_lc, ',', loop_ms_or_lb_or_lc),
         ),
         ')',
     )
-    .parse_next(s);
-    match res {
-        Ok(exprs) => Ok(SExpr::Map(BTreeMap::from_iter(exprs.into_iter()))),
-        Err(e) => Err(e),
-    }
+    .parse_next(s)?;
+
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Map(BTreeMap::from_iter(exprs.into_iter())),
+    ))
 }
 
 fn var(s: &mut &str) -> Result<SExpr> {
@@ -98,7 +126,11 @@ fn sval(s: &mut &str) -> Result<SExpr> {
 fn sindex(s: &mut &str) -> Result<SExpr> {
     seq!(
         _: whitespace,
-        alt((sval, var, paren)),
+        alt((
+          |i: &mut &str| sval(source, i),
+          |i: &mut &str| var(source, i),
+          |i: &mut &str| paren(source, i),
+        )),
         _: loop_ms_or_lb_or_lc,
         _: '[',
         _: loop_ms_or_lb_or_lc,
@@ -115,205 +147,248 @@ fn ifelse(s: &mut &str) -> Result<SExpr> {
         _: whitespace,
         _: "if",
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: "then",
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: "else",
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: whitespace,
     ))
     .map(|(b, s1, s2)| SExpr::If(Box::new(b), Box::new(s1), Box::new(s2)))
     .parse_next(s)
 }
 
-fn defer(s: &mut &str) -> Result<SExpr> {
-    alt((
-        seq!((
-            _: whitespace,
-            _: literal("defer"),
-            _: loop_ms_or_lb_or_lc,
-            _: '(',
-            _: loop_ms_or_lb_or_lc,
-            sexpr,
-            _: loop_ms_or_lb_or_lc,
-            _: ')',
-        ))
-        .map(|(e,)| SExpr::Defer(Box::new(e), StreamTypeAscription::Unascribed, eco_vec![])),
-        seq!((
-            _: whitespace,
-            _: literal("defer"),
-            _: loop_ms_or_lb_or_lc,
-            _: '(',
-            _: loop_ms_or_lb_or_lc,
-            sexpr,
-            type_annotation,
-            _: loop_ms_or_lb_or_lc,
-            _: ')',
-        ))
-        .map(|(e, st)| SExpr::Defer(Box::new(e), StreamTypeAscription::Ascribed(st), eco_vec![])),
+fn defer(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, st) = seq!((
+        _: whitespace,
+        _: literal("defer"),
+        _: loop_ms_or_lb_or_lc,
+        _: '(',
+        _: loop_ms_or_lb_or_lc,
+        |i: &mut &str| sexpr_with_source(source, i),
+        opt(type_annotation),
+        _: loop_ms_or_lb_or_lc,
+        _: ')',
     ))
-    .parse_next(s)
+    .parse_next(s)?;
+
+    let end_rest = *s;
+
+    // Improved the optional type annotation parsing by using `opt` to make it more robust and readable instead of alt
+    let ascription = match st {
+        Some(st) => StreamTypeAscription::Ascribed(st),
+        None => StreamTypeAscription::Unascribed,
+    };
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Defer(Box::new(e), ascription, eco_vec![]),
+    ))
 }
 
-fn update(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn update(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+
+    let (lhs, rhs) = seq!((
         _: whitespace,
         _: literal("update"),
         _: loop_ms_or_lb_or_lc,
         _: '(',
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     ))
-    .map(|(lhs, rhs)| SExpr::Update(Box::new(lhs), Box::new(rhs)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Update(Box::new(lhs), Box::new(rhs)),
+    ))
+    // .map(|(lhs, rhs)| span_wrapper_winnow(SExpr::Update(Box::new(lhs), Box::new(rhs))))
+    // .parse_next(s)
 }
 
-fn is_defined(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn is_defined(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+
+    let (e,) = seq!((
         _: whitespace,
         _: literal("is_defined"),
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     ))
-    .map(|(e,)| SExpr::IsDefined(Box::new(e)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::IsDefined(Box::new(e)),
+    ))
+    // .map(|(e,)| span_wrapper_winnow(SExpr::IsDefined(Box::new(e))))
+    // .parse_next(s)
 }
 
-fn when(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn when(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e,) = seq!((
         _: whitespace,
         _: literal("when"),
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+         |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     ))
-    .map(|(e,)| SExpr::When(Box::new(e)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::When(Box::new(e)),
+    ))
+    // .map(|(e,)| span_wrapper_winnow(SExpr::When(Box::new(e))))
+    // .parse_next(s)
 }
 
-fn latch(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn latch(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (lhs, rhs) = seq!((
         _: whitespace,
         _: literal("latch"),
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     ))
-    .map(|(lhs, rhs)| SExpr::Latch(Box::new(lhs), Box::new(rhs)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Latch(Box::new(lhs), Box::new(rhs)),
+    ))
+    // .map(|(lhs, rhs)| span_wrapper_winnow(
+    // .parse_next(s)
 }
 
-fn init(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn init(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (lhs, rhs) = seq!((
         _: whitespace,
         _: literal("init"),
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     ))
-    .map(|(lhs, rhs)| SExpr::Init(Box::new(lhs), Box::new(rhs)))
-    .parse_next(s)
-}
-
-fn dynamic(s: &mut &str) -> Result<SExpr> {
-    alt((
-        seq!((
-            _: whitespace,
-            _: alt(("dynamic", "eval")),
-            _: loop_ms_or_lb_or_lc,
-            _: '(',
-            _: loop_ms_or_lb_or_lc,
-            sexpr,
-            _: loop_ms_or_lb_or_lc,
-            _: ')',
-        ))
-        .map(|(e,)| SExpr::Dynamic(Box::new(e), StreamTypeAscription::Unascribed)),
-        seq!((
-            _: whitespace,
-            _: alt(("dynamic", "eval")),
-            _: loop_ms_or_lb_or_lc,
-            _: '(',
-            _: loop_ms_or_lb_or_lc,
-            sexpr,
-            type_annotation,
-            _: loop_ms_or_lb_or_lc,
-            _: ')',
-        ))
-        .map(|(e, st)| SExpr::Dynamic(Box::new(e), StreamTypeAscription::Ascribed(st))),
+    .parse_next(s)?;
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Init(Box::new(lhs), Box::new(rhs)),
     ))
-    .parse_next(s)
+    // .map(|(lhs, rhs)| span_wrapper_winnow(SExpr::Init(Box::new(lhs), Box::new(rhs))))
+    // .parse_next(s)
 }
 
-fn restricted_dynamic(s: &mut &str) -> Result<SExpr> {
-    alt((
-        seq!((
-            _: whitespace,
-            _: alt(("dynamic", "eval")),
-            _: loop_ms_or_lb_or_lc,
-            _: '(',
-            _: loop_ms_or_lb_or_lc,
-            sexpr,
-            _: loop_ms_or_lb_or_lc,
-            _: literal(","),
-            _: loop_ms_or_lb_or_lc,
-            var_set,
-            _: loop_ms_or_lb_or_lc,
-            _: ')',
-        ))
-        .map(|(e, var_set)| {
-            SExpr::RestrictedDynamic(Box::new(e), StreamTypeAscription::Unascribed, var_set)
-        }),
-        seq!((
-            _: whitespace,
-            _: alt(("dynamic", "eval")),
-            _: loop_ms_or_lb_or_lc,
-            _: '(',
-            _: loop_ms_or_lb_or_lc,
-            sexpr,
-            type_annotation,
-            _: loop_ms_or_lb_or_lc,
-            _: literal(","),
-            _: loop_ms_or_lb_or_lc,
-            var_set,
-            _: loop_ms_or_lb_or_lc,
-            _: ')',
-        ))
-        .map(|(e, st, var_set)| {
-            SExpr::RestrictedDynamic(Box::new(e), StreamTypeAscription::Ascribed(st), var_set)
-        }),
+fn dynamic(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, st) = seq!((
+        _: whitespace,
+        _: alt(("dynamic", "eval")),
+        _: loop_ms_or_lb_or_lc,
+        _: '(',
+        _: loop_ms_or_lb_or_lc,
+        |i: &mut &str| sexpr_with_source(source, i),
+        opt(type_annotation),
+        _: loop_ms_or_lb_or_lc,
+        _: ')',
     ))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    // Improved the optional type annotation parsing by using `opt` to make it more robust and readable instead of alt
+    let type_ascription = match st {
+        Some(st) => StreamTypeAscription::Ascribed(st),
+        None => StreamTypeAscription::Unascribed,
+    };
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Dynamic(Box::new(e), type_ascription),
+    ))
 }
 
-fn var_set(s: &mut &str) -> Result<EcoVec<VarName>> {
+fn restricted_dynamic(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, st, vs) = seq!((
+        _: whitespace,
+        _: alt(("dynamic", "eval")),
+        _: loop_ms_or_lb_or_lc,
+        _: '(',
+        _: loop_ms_or_lb_or_lc,
+        |i: &mut &str| sexpr_with_source(source, i),
+        opt(type_annotation),
+        _: loop_ms_or_lb_or_lc,
+        _: literal(","),
+        _: loop_ms_or_lb_or_lc,
+        |i: &mut &str | var_set(source, i),
+        _: loop_ms_or_lb_or_lc,
+        _: ')',
+    ))
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    // Improved the optional type annotation parsing by using `opt` to make it more robust and readable instead of alt
+    let type_ascription = match st {
+        Some(st) => StreamTypeAscription::Ascribed(st),
+        None => StreamTypeAscription::Unascribed,
+    };
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::RestrictedDynamic(Box::new(e), type_ascription, vs),
+    ))
+}
+
+fn var_set(_source: &str, s: &mut &str) -> Result<EcoVec<VarName>> {
     seq!((
         _: whitespace,
         _: '{',
@@ -338,143 +413,215 @@ fn default(s: &mut &str) -> Result<SExpr> {
         _: literal("default"),
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     ))
-    .map(|(lhs, rhs)| SExpr::Default(Box::new(lhs), Box::new(rhs)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start,
+        end,
+        SExpr::Default(Box::new(lhs), Box::new(rhs)),
+    ))
 }
 
-fn not(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn not(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e,) = seq!((
         _: whitespace,
         _: "!",
         _: loop_ms_or_lb_or_lc,
-        atom,
+        |i: &mut &str | atom(source, i),
         _: whitespace,
     ))
-    .map(|(e,)| SExpr::Not(Box::new(e)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Not(Box::new(e)),
+    ))
+    // .map(|(e,)| span_wrapper_winnow(SExpr::Not(Box::new(e))))
+    // .parse_next(s)
 }
 
-fn lindex(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn lindex(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, i) = seq!(
         _: whitespace,
         _: "List.get",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     )
-    .map(|(e, i)| SExpr::LIndex(Box::new(e), Box::new(i)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::LIndex(Box::new(e), Box::new(i)),
+    ))
+    // .map(|(e, i)| span_wrapper_winnow(SExpr::LIndex(Box::new(e), Box::new(i))))
+    // .parse_next(s)
 }
 
-fn lappend(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn lappend(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (lst, el) = seq!(
         _: whitespace,
         _: "List.append",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     )
-    .map(|(lst, el)| SExpr::LAppend(Box::new(lst), Box::new(el)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::LAppend(Box::new(lst), Box::new(el)),
+    ))
+    // .map(|(lst, el)| span_wrapper_winnow(SExpr::LAppend(Box::new(lst), Box::new(el))))
+    // .parse_next(s)
 }
 
-fn lconcat(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn lconcat(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (lst1, lst2) = seq!(
         _: whitespace,
         _: "List.concat",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     )
-    .map(|(lst1, lst2)| SExpr::LConcat(Box::new(lst1), Box::new(lst2)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::LConcat(Box::new(lst1), Box::new(lst2)),
+    ))
+    // .parse_next(s)
 }
 
-fn lhead(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn lhead(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (lst,) = seq!((
         _: whitespace,
         _: "List.head",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
         _: whitespace,
     ))
-    .map(|(lst,)| SExpr::LHead(Box::new(lst)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::LHead(Box::new(lst)),
+    ))
+    // .parse_next(s)
 }
 
-fn ltail(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn ltail(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (lst,) = seq!((
         _: whitespace,
         _: "List.tail",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
         _: whitespace,
     ))
-    .map(|(lst,)| SExpr::LTail(Box::new(lst)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::LTail(Box::new(lst)),
+    ))
+    // .parse_next(s)
 }
 
-fn llen(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn llen(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (lst,) = seq!((
         _: whitespace,
         _: "List.len",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
         _: whitespace,
     ))
-    .map(|(lst,)| SExpr::LLen(Box::new(lst)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::LLen(Box::new(lst)),
+    ))
+    // .parse_next(s)
 }
 
-fn mget(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn mget(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, k) = seq!(
         _: whitespace,
         _: "Map.get",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
@@ -482,18 +629,27 @@ fn mget(s: &mut &str) -> Result<SExpr> {
         _: loop_ms_or_lb_or_lc,
         _: ')',
     )
-    .map(|(e, k)| SExpr::MGet(Box::new(e), k.into()))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::MGet(Box::new(e), k.into()),
+    ))
+    // .parse_next(s)
 }
 
-fn minsert(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn minsert(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, k, v) = seq!(
         _: whitespace,
         _: "Map.insert",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
@@ -501,22 +657,31 @@ fn minsert(s: &mut &str) -> Result<SExpr> {
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     )
-    .map(|(e, k, v)| SExpr::MInsert(Box::new(e), k.into(), Box::new(v)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::MInsert(Box::new(e), k.into(), Box::new(v)),
+    ))
+    // .parse_next(s)
 }
 
-fn mremove(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn mremove(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, k) = seq!(
         _: whitespace,
         _: "Map.remove",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
@@ -524,18 +689,27 @@ fn mremove(s: &mut &str) -> Result<SExpr> {
         _: loop_ms_or_lb_or_lc,
         _: ')',
     )
-    .map(|(e, k)| SExpr::MRemove(Box::new(e), k.into()))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::MRemove(Box::new(e), k.into()),
+    ))
+    // .parse_next(s)
 }
 
-fn mhas_key(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn mhas_key(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, k) = seq!(
         _: whitespace,
         _: "Map.has_key",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ',',
         _: loop_ms_or_lb_or_lc,
@@ -543,16 +717,25 @@ fn mhas_key(s: &mut &str) -> Result<SExpr> {
         _: loop_ms_or_lb_or_lc,
         _: ')',
     )
-    .map(|(e, k)| SExpr::MHasKey(Box::new(e), k.into()))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::MHasKey(Box::new(e), k.into()),
+    ))
+    // .parse_next(s)
 }
 
 fn var_or_nodename(s: &mut &str) -> Result<VarOrNodeName> {
     ident.map(|w: &str| VarOrNodeName(w.into())).parse_next(s)
 }
 
-fn monitored_at(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn monitored_at(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (u, v) = seq!((
         _: whitespace,
         _: "monitored_at",
         _: loop_ms_or_lb_or_lc,
@@ -567,12 +750,21 @@ fn monitored_at(s: &mut &str) -> Result<SExpr> {
         _: ")",
         _: whitespace,
     ))
-    .map(|(u, v)| SExpr::MonitoredAt(u, v))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::MonitoredAt(u, v),
+    ))
+    // .parse_next(s)
 }
 
-fn dist(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn dist(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (u, v) = seq!((
         _: whitespace,
         _: "dist",
         _: loop_ms_or_lb_or_lc,
@@ -587,70 +779,116 @@ fn dist(s: &mut &str) -> Result<SExpr> {
         _: ")",
         _: whitespace,
     ))
-    .map(|(u, v)| SExpr::Dist(u, v))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Dist(u, v),
+    ))
+    // .parse_next(s)
 }
 
 /// Trigonometric functions
-fn sin(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn sin(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (v,) = seq!((
         _: whitespace,
         _: "sin",
         _: loop_ms_or_lb_or_lc,
         _: "(",
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ")",
         _: whitespace,
     ))
-    .map(|(v,)| SExpr::Sin(Box::new(v)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Sin(Box::new(v)),
+    ))
+    // .parse_next(s)
 }
-fn cos(s: &mut &str) -> Result<SExpr> {
-    seq!((
+
+fn cos(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (v,) = seq!((
         _: whitespace,
         _: "cos",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
         _: whitespace,
     ))
-    .map(|(v,)| SExpr::Cos(Box::new(v)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Cos(Box::new(v)),
+    ))
+    // .parse_next(s)
 }
-fn tan(s: &mut &str) -> Result<SExpr> {
-    seq!((
+
+fn tan(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (v,) = seq!((
         _: whitespace,
         _: "tan",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
         _: whitespace,
     ))
-    .map(|(v,)| SExpr::Tan(Box::new(v)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Tan(Box::new(v)),
+    ))
+    // .parse_next(s)
 }
-fn abs(s: &mut &str) -> Result<SExpr> {
-    seq!((
+
+fn abs(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (v,) = seq!((
         _: whitespace,
         _: "abs",
         _: loop_ms_or_lb_or_lc,
         _: '(',
         _: loop_ms_or_lb_or_lc,
-        sexpr,
+        |i: &mut &str| sexpr_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
         _: whitespace,
     ))
-    .map(|(v,)| SExpr::Abs(Box::new(v)))
-    .parse_next(s)
+    .parse_next(s)?;
+    let end_rest = *s;
+
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::Abs(Box::new(v)),
+    ))
+    // .parse_next(s)
 }
 
 /// Fundamental expressions of the language
@@ -659,29 +897,50 @@ fn atom(s: &mut &str) -> Result<SExpr> {
     delimited(
         whitespace,
         alt((
-            // Group 1
-            alt((sindex, lindex, lappend, lconcat, lhead, ltail, llen)),
+            //Group 1
+            alt((
+                |i: &mut &str| sindex(source, i),
+                |i: &mut &str| lindex(source, i),
+                |i: &mut &str| lappend(source, i),
+                |i: &mut &str| lconcat(source, i),
+                |i: &mut &str| lhead(source, i),
+                |i: &mut &str| ltail(source, i),
+                |i: &mut &str| llen(source, i),
+            )),
             // Group 2
-            alt((mget, minsert, mremove, mhas_key)),
+            alt((
+                |i: &mut &str| mget(source, i),
+                |i: &mut &str| minsert(source, i),
+                |i: &mut &str| mremove(source, i),
+                |i: &mut &str| mhas_key(source, i),
+            )),
             // Group 3
             alt((
-                not,
-                restricted_dynamic,
-                dynamic,
-                sval,
-                ifelse,
-                defer,
-                update,
-                monitored_at,
-                dist,
-                sin,
-                cos,
-                tan,
-                abs,
+                |i: &mut &str| not(source, i),
+                |i: &mut &str| restricted_dynamic(source, i),
+                |i: &mut &str| dynamic(source, i),
+                |i: &mut &str| sval(source, i),
+                |i: &mut &str| ifelse(source, i),
+                |i: &mut &str| defer(source, i),
+                |i: &mut &str| update(source, i),
+                |i: &mut &str| monitored_at(source, i),
+                |i: &mut &str| dist(source, i),
+                |i: &mut &str| sin(source, i),
+                |i: &mut &str| cos(source, i),
+                |i: &mut &str| tan(source, i),
+                |i: &mut &str| abs(source, i),
             )),
             // Group 4
             alt((
-                default, when, latch, init, is_defined, sexpr_list, sexpr_map, var, paren,
+                |i: &mut &str| default(source, i),
+                |i: &mut &str| when(source, i),
+                |i: &mut &str| latch(source, i),
+                |i: &mut &str| init(source, i),
+                |i: &mut &str| is_defined(source, i),
+                |i: &mut &str| sexpr_list(source, i),
+                |i: &mut &str| sexpr_map(source, i),
+                |i: &mut &str| var(source, i),
+                |i: &mut &str| paren(source, i),
             )),
         )),
         whitespace,
