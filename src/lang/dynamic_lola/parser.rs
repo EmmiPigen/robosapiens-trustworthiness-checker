@@ -386,7 +386,7 @@ fn restricted_dynamic(source: &str, s: &mut &str) -> Result<SpannedExpr> {
         _: loop_ms_or_lb_or_lc,
         _: literal(","),
         _: loop_ms_or_lb_or_lc,
-        |i: &mut &str | var_set(source, i),
+        |i: &mut &str| var_set(source, i),
         _: loop_ms_or_lb_or_lc,
         _: ')',
     ))
