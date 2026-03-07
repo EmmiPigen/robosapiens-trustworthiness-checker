@@ -3,18 +3,28 @@ use std::fmt;
 
 use anyhow::{Error, anyhow};
 use ecow::EcoVec;
+// use lalrpop_util::ParseError;
 use tracing::debug;
 
 use super::lalr::{ExprParser, TopDeclParser, TopDeclsParser};
 use crate::lang::core::parser::{ExprParser as EParserTrait, SpecParser as SParserTrait};
-use crate::{LOLASpecification, SExpr, lang::dynamic_lola::ast::STopDecl};
+use crate::{
+    LOLASpecification,
+    lang::dynamic_lola::ast::{STopDecl, SpannedExpr},
+};
 
 #[derive(Clone)]
 pub struct LALRParser;
 
-impl EParserTrait<SExpr> for LALRParser {
-    fn parse(input: &mut &str) -> anyhow::Result<SExpr> {
+impl EParserTrait<SpannedExpr> for LALRParser {
+    fn parse(input: &mut &str) -> anyhow::Result<SpannedExpr> {
         debug!("Parsing expr: {}", input);
+        parse_sexpr(input)
+    }
+
+    //Could'nt get this to give an not anyhow error, so just return anyhow error for now. Would try again to get a more usefull error for the Language server if i have more type, for now i would just use the winnow parser then
+    type Error = anyhow::Error;
+    fn raw_parse_error(input: &mut &str) -> Result<SpannedExpr, Self::Error> {
         parse_sexpr(input)
     }
 }
@@ -25,7 +35,7 @@ impl SParserTrait<LOLASpecification> for LALRParser {
     }
 }
 
-pub fn parse_sexpr<'input>(input: &'input str) -> Result<SExpr, Error> {
+pub fn parse_sexpr<'input>(input: &'input str) -> Result<SpannedExpr, Error> {
     ExprParser::new()
         .parse(input)
         .map_err(|e| anyhow!("Parse error: {:?}", e))
@@ -131,13 +141,14 @@ mod tests {
     use crate::lang::core::parser::presult_to_string;
 
     use crate::VarName;
-    use crate::lang::dynamic_lola::ast::NumericalBinOp;
-    use crate::lang::dynamic_lola::ast::SBinOp;
+    use crate::lang::dynamic_lola::ast::{NumericalBinOp, SBinOp, SpannedExpr};
 
     use crate::core::StreamTypeAscription;
 
     use super::*;
     use test_log::test;
+
+    type SExpr = SpannedExpr;
 
     #[test]
     fn test_streamdata() {
@@ -252,7 +263,7 @@ mod tests {
             aux_info: vec![],
             exprs: BTreeMap::from([(
                 "z".into(),
-                SExpr::BinOp(
+                SpannedExpr::BinOp(
                     Box::new(SExpr::Var("x".into())),
                     Box::new(SExpr::Var("y".into())),
                     SBinOp::NOp(NumericalBinOp::Add),
@@ -275,7 +286,7 @@ mod tests {
             aux_info: vec![],
             exprs: BTreeMap::from([(
                 "z".into(),
-                SExpr::BinOp(
+                SpannedExpr::BinOp(
                     Box::new(SExpr::Var("x".into())),
                     Box::new(SExpr::Var("y".into())),
                     SBinOp::NOp(NumericalBinOp::Add),
@@ -302,7 +313,7 @@ mod tests {
             aux_info: vec![],
             exprs: BTreeMap::from([(
                 "z".into(),
-                SExpr::BinOp(
+                SpannedExpr::BinOp(
                     Box::new(SExpr::Var("x".into())),
                     Box::new(SExpr::Var("y".into())),
                     SBinOp::NOp(NumericalBinOp::Add),
@@ -331,9 +342,9 @@ mod tests {
             aux_info: vec![],
             exprs: BTreeMap::from([(
                 "x".into(),
-                SExpr::BinOp(
-                    Box::new(SExpr::Val(1.into())),
-                    Box::new(SExpr::SIndex(Box::new(SExpr::Var("x".into())), 1)),
+                SpannedExpr::BinOp(
+                    Box::new(SExpr::Val(1)),
+                    Box::new(SExpr::SIndex(Box::new(SpannedExpr::Var("x".into())), 1)),
                     SBinOp::NOp(NumericalBinOp::Add),
                 ),
             )]),
@@ -361,7 +372,7 @@ mod tests {
             BTreeMap::from([
                 (
                     "z".into(),
-                    SExpr::BinOp(
+                    SpannedExpr::BinOp(
                         Box::new(SExpr::Var("x".into())),
                         Box::new(SExpr::Var("y".into())),
                         SBinOp::NOp(NumericalBinOp::Add),
@@ -369,7 +380,7 @@ mod tests {
                 ),
                 (
                     "w".into(),
-                    SExpr::Dynamic(
+                    SpannedExpr::Dynamic(
                         Box::new(SExpr::Var("s".into())),
                         StreamTypeAscription::Unascribed,
                     ),
