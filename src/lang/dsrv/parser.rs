@@ -29,8 +29,8 @@ impl ExprParser<SpannedExpr> for CombExprParser {
 
     //Added for better errors in the language Server
     type Error = winnow::error::ContextError;
-    fn raw_parse_error(input: &mut &str) -> Result<SpannedExpr, Self::Error> {
-        dsrv_expression(input)
+    fn raw_parse_error(input: &mut &str) -> Result<LOLASpecification, Self::Error> {
+        dsrv_specification(input)
     }
 }
 
