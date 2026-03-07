@@ -104,6 +104,37 @@ pub fn spec_simple_add_monitor() -> &'static str {
 }
 
 #[allow(dead_code)]
+pub fn spec_simple_add_monitor_plus_one() -> &'static str {
+    "in x\n\
+     in y\n\
+     out z\n\
+     z = x + y + 1"
+}
+
+#[allow(dead_code)]
+pub fn spec_acc_monitor() -> &'static str {
+    "in x\n\
+     out z\n\
+     z = default(z[1], 0) + x"
+}
+
+#[allow(dead_code)]
+pub fn spec_assignment_monitor() -> &'static str {
+    "in x\n\
+     out v\n\
+     v = x"
+}
+
+#[allow(dead_code)]
+pub fn spec_assignment2_monitor() -> &'static str {
+    "in x\n\
+     out v\n\
+     out w\n\
+     v = x\n\
+     w = v + 1"
+}
+
+#[allow(dead_code)]
 pub fn spec_simple_add_aux_monitor() -> &'static str {
     "in x\n\
      in y\n\
