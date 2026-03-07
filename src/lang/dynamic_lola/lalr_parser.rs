@@ -24,8 +24,8 @@ impl EParserTrait<SpannedExpr> for LALRParser {
 
     //Could'nt get this to give an not anyhow error, so just return anyhow error for now. Would try again to get a more usefull error for the Language server if i have more type, for now i would just use the winnow parser then
     type Error = anyhow::Error;
-    fn raw_parse_error(input: &mut &str) -> Result<SpannedExpr, Self::Error> {
-        parse_sexpr(input)
+    fn raw_parse_error(input: &mut &str) -> Result<LOLASpecification, Self::Error> {
+        parse_str(input)
     }
 }
 impl SParserTrait<LOLASpecification> for LALRParser {

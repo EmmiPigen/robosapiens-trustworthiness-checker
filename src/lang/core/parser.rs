@@ -7,7 +7,7 @@ use winnow::{
     token::{literal, take_until},
 };
 
-use crate::{Specification, Value};
+use crate::{LOLASpecification, Specification, Value};
 use std::{collections::BTreeMap, fmt::Debug};
 use winnow::Parser;
 pub use winnow::ascii::alphanumeric1 as ident;
@@ -18,7 +18,7 @@ pub use winnow::ascii::space0 as whitespace;
 pub trait ExprParser<Expr>: Clone {
     fn parse(input: &mut &str) -> anyhow::Result<Expr>;
     type Error;
-    fn raw_parse_error(input: &mut &str) -> Result<Expr, Self::Error>;
+    fn raw_parse_error(input: &mut &str) -> Result<LOLASpecification, Self::Error>;
 }
 pub trait SpecParser<Spec: Specification>: Clone + 'static {
     fn parse(input: &mut &str) -> anyhow::Result<Spec>;
