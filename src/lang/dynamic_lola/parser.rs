@@ -1190,7 +1190,43 @@ pub(crate) fn assignment_decls(s: &mut &str) -> Result<Vec<(VarName, SpannedExpr
     separated(0.., assignment_decl, seq!(lb_or_lc, loop_ms_or_lb_or_lc)).parse_next(s)
 }
 
+// New for not losing source info in assignment declarations
+pub(crate) fn assignment_decl_with_source(
+    source: &str,
+    s: &mut &str,
+) -> Result<(VarName, SpannedExpr)> {
+    seq!((
+        _: whitespace,
+        ident,
+        _: loop_ms_or_lb_or_lc,
+        _: literal("="),
+        |i: &mut &str | sexpr_with_source(source, i),
+        _: whitespace,
+    ))
+    .map(|(name, expr)| (name.into(), expr))
+    .parse_next(s)
+}
+
+// New for not losing source info in assignment declarations
+pub(crate) fn assignment_decls_with_source(
+    source: &str,
+    s: &mut &str,
+) -> Result<Vec<(VarName, SpannedExpr)>> {
+    separated(
+        0..,
+        |i: &mut &str| assignment_decl_with_source(source, i),
+        seq!(lb_or_lc, loop_ms_or_lb_or_lc),
+    )
+    .parse_next(s)
+}
+
 pub fn lola_specification(s: &mut &str) -> Result<LOLASpecification> {
+    let source = *s;
+    lola_specification_with_source(source, s)
+}
+
+// New for not losing source info in assignment declarations in the LOLA specification
+pub fn lola_specification_with_source(source: &str, s: &mut &str) -> Result<LOLASpecification> {
     seq!((
         _: loop_ms_or_lb_or_lc,
         input_decls,
@@ -1199,7 +1235,7 @@ pub fn lola_specification(s: &mut &str) -> Result<LOLASpecification> {
         _: loop_ms_or_lb_or_lc,
         aux_decls,
         _: loop_ms_or_lb_or_lc,
-        assignment_decls,
+        |i: &mut &str | assignment_decls_with_source(source, i),
         _: loop_ms_or_lb_or_lc,
     ))
     .map(|(input_vars, output_vars, aux_vars, exprs)| {

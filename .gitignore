@@ -11,3 +11,4 @@ build
 log
 install
 package.json
+.vscode/mcp.json
