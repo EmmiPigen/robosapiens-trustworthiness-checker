@@ -58,26 +58,26 @@ pub fn create_dsrv_spec(stmts: &EcoVec<STopDecl>) -> DsrvSpecification {
 
     for stmt in stmts {
         match stmt {
-            STopDecl::Input(var, typ) => {
+            STopDecl::Input(var, typ,_) => {
                 inputs.push(var.clone());
                 if let Some(typ) = typ {
                     type_annotations.insert(var.clone(), typ.clone());
                 }
             }
-            STopDecl::Output(var, typ) => {
+            STopDecl::Output(var, typ,_) => {
                 outputs.push(var.clone());
                 if let Some(typ) = typ {
                     type_annotations.insert(var.clone(), typ.clone());
                 }
             }
-            STopDecl::Aux(var, typ) => {
+            STopDecl::Aux(var, typ,_) => {
                 outputs.push(var.clone());
                 aux_info.push(var.clone());
                 if let Some(typ) = typ {
                     type_annotations.insert(var.clone(), typ.clone());
                 }
             }
-            STopDecl::Assignment(var, sexpr) => {
+            STopDecl::Assignment(var, sexpr,_) => {
                 assignments.insert(var.clone(), sexpr.clone());
             }
         }
