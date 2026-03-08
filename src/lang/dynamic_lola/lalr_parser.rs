@@ -84,6 +84,10 @@ pub fn create_lola_spec(stmts: &EcoVec<STopDecl>) -> LOLASpecification {
             STopDecl::Assignment(var, sexpr,_) => {
                 assignments.insert(var.clone(), sexpr.clone());
             }
+
+            STopDecl::Error(span) => tracing::warn!(?span,
+            "Recovered parse error in top-level declaration"),
+            
         }
     }
 

@@ -1066,7 +1066,13 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
             SExpr::MInsert(_, _, _) => todo!("Implement support for typed MInsert"),
             SExpr::MRemove(_, _) => todo!("Implement support for typed MRemove"),
             SExpr::MHasKey(_, _) => todo!("Implement support for typed MHasKey"),
+            SExpr::Error => { // Added Error node for error recovery functionality 
+                errs.push(SemanticError::TypeError(
+                    "Encountered an expression that was already in an error state".into(),
+                ));
+                Err(())
         }
+    }   
     }
 }
 

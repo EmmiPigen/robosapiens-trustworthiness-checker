@@ -56,6 +56,7 @@ impl From<&Span> for Range<usize> {
     }
 }
 
+// The Wrapper for the AST nodes that carries the span information for error reporting and diagnostics. It is generic over the type of the node, so it can be used for any AST node type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug, serde::Serialize)]
 pub struct Spanned<T> {
     pub node: T,

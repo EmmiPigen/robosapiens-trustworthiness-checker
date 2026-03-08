@@ -234,6 +234,10 @@ impl SpannedExpr {
     pub fn List(items: EcoVec<SpannedExpr>) -> Self {
         SExpr::List(items).into()
     }
+
+    pub fn is_partial(&self) -> bool {
+        self.node.is_partial()
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
@@ -303,6 +307,9 @@ pub enum SExpr {
     // Distribution Constraint Specific
     MonitoredAt(VarName, NodeName),
     Dist(VarOrNodeName, VarOrNodeName),
+
+    // Error case for when we fail to parse an expression, so we can still produce a specification with spans for error reporting
+    Error,
 }
 
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
@@ -311,9 +318,15 @@ pub enum STopDecl {
     Output(VarName, Option<StreamType>, Span),
     Aux(VarName, Option<StreamType>, Span),
     Assignment(VarName, SpannedExpr, Span),
+    Error(Span),
 }
 
 impl SExpr {
+    // Helper function to determine if an expression is partial (i.e., contains an error)
+    pub fn is_partial(&self) -> bool {
+        matches!(self, SExpr::Error)
+    }
+
     pub fn inputs(&self) -> Vec<VarName> {
         use SExpr::*;
         match self {
@@ -376,6 +389,10 @@ impl SExpr {
                 inputs.extend(e2.inputs());
                 inputs
             }
+            
+            // Error case -- no inputs
+            Error => vec![],
+
             MGet(e, _)
             | MInsert(e, _, _)
             | MRemove(e, _)
@@ -541,6 +558,7 @@ impl LOLASpecification {
                 ),
                 SExpr::MRemove(map, k) => SExpr::MRemove(Box::new(traverse_expr(*map, vars)), k),
                 SExpr::MHasKey(map, k) => SExpr::MHasKey(Box::new(traverse_expr(*map, vars)), k),
+                SExpr::Error => SExpr::Error,
             };
             Spanned {
                 node: new_kind,
@@ -698,6 +716,7 @@ impl Display for SpannedExpr {
             Cos(v) => write!(f, "cos({})", v),
             Tan(v) => write!(f, "tan({})", v),
             Abs(v) => write!(f, "abs({})", v),
+            Error => write!(f, "<Syntax Error>"),
         }
     }
 }
