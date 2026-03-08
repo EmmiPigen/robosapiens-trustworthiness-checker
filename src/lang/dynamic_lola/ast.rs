@@ -307,10 +307,10 @@ pub enum SExpr {
 
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
 pub enum STopDecl {
-    Input(VarName, Option<StreamType>),
-    Output(VarName, Option<StreamType>),
-    Aux(VarName, Option<StreamType>),
-    Assignment(VarName, SpannedExpr),
+    Input(VarName, Option<StreamType>, Span),
+    Output(VarName, Option<StreamType>, Span),
+    Aux(VarName, Option<StreamType>, Span),
+    Assignment(VarName, SpannedExpr, Span),
 }
 
 impl SExpr {
