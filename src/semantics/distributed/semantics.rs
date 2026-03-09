@@ -188,7 +188,6 @@ where
                 dist_mc::monitored_at::<AC>(var_name, label, ctx)
             }
             SExpr::Dist(u, v) => dist_mc::dist::<AC>(u, v, ctx),
-            SExpr::Error => mc::val(Value::Deferred), 
         }
     }
 }

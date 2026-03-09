@@ -241,7 +241,6 @@ where
                 let v = <Self as MonitoringSemantics<AC>>::to_async_stream(*v, ctx);
                 mc::abs(v)
             }
-            SExpr::Error => mc::val(Value::Deferred), // Safest minimal Fallback for incomplete implementations
         }
     }
 }
