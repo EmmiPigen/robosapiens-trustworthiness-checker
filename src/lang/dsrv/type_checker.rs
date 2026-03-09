@@ -1066,7 +1066,7 @@ impl TypeCheckableHelper<SExprTE> for SExpr {
             SExpr::MInsert(_, _, _) => todo!("Implement support for typed MInsert"),
             SExpr::MRemove(_, _) => todo!("Implement support for typed MRemove"),
             SExpr::MHasKey(_, _) => todo!("Implement support for typed MHasKey"),
-        }
+    }   
     }
 }
 

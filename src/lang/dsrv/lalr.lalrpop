@@ -391,12 +391,7 @@ PrecChain<Final>: SpannedExpr = {
 // The top-level expression
 pub Expr: SpannedExpr = {
     Ifelse, // If-else binds weaker than the PrecChain chain to handle dangling else, i.e., if a then b else c + d is parsed as if a then b else (c + d)
-    PrecChain<Atom>
-    //Error Handling
-    <l:@L> <r:@R> ! => Spanned {
-        node: SExpr::Error,
-        span: Span::new(l as u32, r as u32),
-    }
+    PrecChain<Atom>,
 };
 
 // -----------------------------------------------------------------------------
@@ -426,7 +421,6 @@ pub TopDecl: STopDecl = {
     OutputDecl,
     AuxDecl,
     Assignment,
-    <l:@L> <r:@R> ! => STopDecl::Error(Span::new(l as u32, r as u32)),
 }
 
 pub TopDecls: EcoVec<STopDecl> = {

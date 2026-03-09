@@ -144,6 +144,95 @@ impl Into<String> for VarOrNodeName {
     }
 }
 
+pub type SpannedExpr = Spanned<SExpr>;
+
+// Helper function to convert SExpr into SpannedExpr with a default span for the files that need use spans
+impl From<SExpr> for SpannedExpr {
+    fn from(node: SExpr) -> Self {
+        Spanned {
+            node,
+            span: Span::default(),
+        }
+    }
+}
+// Helper functions to create SpannedExprs without having to specify the span every time
+// for quicker migration to the spans
+#[allow(non_snake_case)]
+impl SpannedExpr {
+    pub fn Val(v: impl Into<Value>) -> Self {
+        SExpr::Val(v.into()).into()
+    }
+
+    pub fn Var(v: VarName) -> Self {
+        SExpr::Var(v).into()
+    }
+
+    pub fn BinOp<L, R>(lhs: Box<L>, rhs: Box<R>, op: SBinOp) -> Self
+    where
+        L: Into<SpannedExpr>,
+        R: Into<SpannedExpr>,
+    {
+        SExpr::BinOp(Box::new((*lhs).into()), Box::new((*rhs).into()), op).into()
+    }
+
+    pub fn If<C, T, E>(c: Box<C>, t: Box<T>, e: Box<E>) -> Self
+    where
+        C: Into<SpannedExpr>,
+        T: Into<SpannedExpr>,
+        E: Into<SpannedExpr>,
+    {
+        SExpr::If(
+            Box::new((*c).into()),
+            Box::new((*t).into()),
+            Box::new((*e).into()),
+        )
+        .into()
+    }
+
+    pub fn SIndex<E>(e: Box<E>, idx: u64) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::SIndex(Box::new((*e).into()), idx).into()
+    }
+
+    pub fn Dynamic<E>(e: Box<E>, t: StreamTypeAscription) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Dynamic(Box::new((*e).into()), t).into()
+    }
+
+    pub fn RestrictedDynamic<E>(e: Box<E>, t: StreamTypeAscription, vs: EcoVec<VarName>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::RestrictedDynamic(Box::new((*e).into()), t, vs).into()
+    }
+
+    pub fn Defer<E>(e: Box<E>, t: StreamTypeAscription, vs: EcoVec<VarName>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Defer(Box::new((*e).into()), t, vs).into()
+    }
+
+    pub fn Not<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Not(Box::new((*e).into())).into()
+    }
+
+    pub fn Map(map: BTreeMap<EcoString, SpannedExpr>) -> Self {
+        SExpr::Map(map).into()
+    }
+    
+    pub fn List(items: EcoVec<SpannedExpr>) -> Self {
+        SExpr::List(items).into()
+    }
+}
+
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
 pub enum SExpr {
     // if-then-else
@@ -211,6 +300,7 @@ pub enum SExpr {
     // Distribution Constraint Specific
     MonitoredAt(VarName, NodeName),
     Dist(VarOrNodeName, VarOrNodeName),
+
 }
 
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
@@ -284,6 +374,7 @@ impl SExpr {
                 inputs.extend(e2.inputs());
                 inputs
             }
+            
             MGet(e, _)
             | MInsert(e, _, _)
             | MRemove(e, _)
@@ -447,7 +538,11 @@ impl DsrvSpecification {
                 ),
                 SExpr::MRemove(map, k) => SExpr::MRemove(Box::new(traverse_expr(*map, vars)), k),
                 SExpr::MHasKey(map, k) => SExpr::MHasKey(Box::new(traverse_expr(*map, vars)), k),
-            }
+            };
+            Spanned {
+                node: new_kind,
+                span,
+            } // Output the new expression with the same span as the original
         }
         let vars: EcoVec<VarName> = input_vars
             .iter()

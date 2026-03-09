@@ -80,6 +80,7 @@ pub fn create_dsrv_spec(stmts: &EcoVec<STopDecl>) -> DsrvSpecification {
             STopDecl::Assignment(var, sexpr,_) => {
                 assignments.insert(var.clone(), sexpr.clone());
             }
+
         }
     }
 
