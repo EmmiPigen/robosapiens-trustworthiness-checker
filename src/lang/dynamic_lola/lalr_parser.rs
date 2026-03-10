@@ -62,29 +62,28 @@ pub fn create_lola_spec(stmts: &EcoVec<STopDecl>) -> LOLASpecification {
 
     for stmt in stmts {
         match stmt {
-            STopDecl::Input(var, typ,_) => {
+            STopDecl::Input(var, typ, _) => {
                 inputs.push(var.clone());
                 if let Some(typ) = typ {
                     type_annotations.insert(var.clone(), typ.clone());
                 }
             }
-            STopDecl::Output(var, typ,_) => {
+            STopDecl::Output(var, typ, _) => {
                 outputs.push(var.clone());
                 if let Some(typ) = typ {
                     type_annotations.insert(var.clone(), typ.clone());
                 }
             }
-            STopDecl::Aux(var, typ,_) => {
+            STopDecl::Aux(var, typ, _) => {
                 outputs.push(var.clone());
                 aux_info.push(var.clone());
                 if let Some(typ) = typ {
                     type_annotations.insert(var.clone(), typ.clone());
                 }
             }
-            STopDecl::Assignment(var, sexpr,_) => {
+            STopDecl::Assignment(var, sexpr, _) => {
                 assignments.insert(var.clone(), sexpr.clone());
             }
-
         }
     }
 
@@ -135,6 +134,41 @@ pub async fn parse_file<'file>(file: &'file str) -> anyhow::Result<LOLASpecifica
     })?;
     Ok(create_lola_spec(&stmts))
 }
+
+fn recover_stopdecls_prefix(input: &str, err_byte: usize) -> EcoVec<STopDecl> {
+    let mut ends: Vec<usize> = input
+        .char_indices()
+        .filter_map(|(i, ch)| (ch == '\n' && i <= err_byte).then_some(i + 1))
+        .collect();
+
+    ends.push(0);
+    ends.sort_unstable();
+    ends.dedup();
+
+    for end in ends.into_iter().rev() {
+        if let Ok(stmts) = TopDeclsParser::new().parse(&input[..end]) {
+            return stmts;
+        }
+    }
+    EcoVec::new()
+}
+
+pub fn parser_str_lossy(input: &str) -> anyhow::Result<EcoVec<STopDecl>> {
+  match TopDeclsParser::new().parse(input) {
+    Ok(stmts) => Ok(stmts),
+    
+    Err(e) => {
+      let mut byte_pos = input.len();
+      let err_fixed = e.map_location(|byte| {
+        byte_pos = byte;
+        line_col(input, byte);
+      });
+
+      Ok(recover_stopdecls_prefix(input, byte_pos))
+    }
+  }
+}
+
 
 #[cfg(test)]
 mod tests {
