@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
+use ecow::eco_vec;
 use ecow::EcoString;
 use ecow::EcoVec;
-use ecow::eco_vec;
 use tracing::debug;
-use winnow::Parser;
-use winnow::Result;
 use winnow::combinator::*;
 use winnow::token::literal;
+use winnow::Parser;
+use winnow::Result;
 
 use super::super::core::parser::*;
 use super::ast::*;
@@ -15,6 +15,7 @@ use crate::core::StreamType;
 use crate::core::StreamTypeAscription;
 use crate::core::VarName;
 use crate::distributed::distribution_graphs::NodeName;
+use crate::lang::dsrv::span::*;
 pub use winnow::ascii::dec_uint as uint;
 
 #[derive(Clone)]
@@ -29,13 +30,13 @@ impl ExprParser<SpannedExpr> for CombExprParser {
 
     //Added for better errors in the language Server
     type Error = winnow::error::ContextError;
-    fn raw_parse_error(input: &mut &str) -> Result<LOLASpecification, Self::Error> {
-        dsrv_specification(input)
+    fn raw_parse_error(input: &mut &str) -> Result<SpannedExpr, Self::Error> {
+        dsrv_expression(input)
     }
 }
 
 // This is the top-level parser for LOLA expressions
-pub fn dsrv_expression(s: &mut &str) -> Result<SExpr> {
+pub fn dsrv_expression(s: &mut &str) -> Result<SpannedExpr> {
     sexpr.parse_next(s)
 }
 
@@ -106,8 +107,11 @@ fn sexpr_map(source: &str, s: &mut &str) -> Result<SpannedExpr> {
     ))
 }
 
-fn var(s: &mut &str) -> Result<SExpr> {
-    var_name.map(SExpr::Var).parse_next(s)
+fn var(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start = *s;
+    let v = var_name.parse_next(s)?;
+    let end = *s;
+    Ok(span_wrapper_winnow(source, start, end, SExpr::Var(v)))
 }
 
 fn var_name(s: &mut &str) -> Result<VarName> {
@@ -119,12 +123,16 @@ fn node_name(s: &mut &str) -> Result<NodeName> {
 }
 
 // Same as `val` but returns SExpr::Val
-fn sval(s: &mut &str) -> Result<SExpr> {
-    val.map(SExpr::Val).parse_next(s)
+fn sval(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start = *s;
+    let v = val.parse_next(s)?;
+    let end = *s;
+    Ok(span_wrapper_winnow(source, start, end, SExpr::Val(v)))
 }
 
-fn sindex(s: &mut &str) -> Result<SExpr> {
-    seq!(
+fn sindex(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (e, idx) = seq!((
         _: whitespace,
         alt((
           |i: &mut &str| sval(source, i),
@@ -136,14 +144,22 @@ fn sindex(s: &mut &str) -> Result<SExpr> {
         _: loop_ms_or_lb_or_lc,
         uint,
         _: loop_ms_or_lb_or_lc,
-        _: ']'
-    )
-    .map(|(e, i)| SExpr::SIndex(Box::new(e), i))
-    .parse_next(s)
+        _: ']',
+    ))
+    .parse_next(s)?;
+
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::SIndex(Box::new(e), idx),
+    ))
 }
 
-fn ifelse(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn ifelse(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start_rest = *s;
+    let (b, s1, s2) = seq!((
         _: whitespace,
         _: "if",
         _: loop_ms_or_lb_or_lc,
@@ -158,8 +174,15 @@ fn ifelse(s: &mut &str) -> Result<SExpr> {
         |i: &mut &str| sexpr_with_source(source, i),
         _: whitespace,
     ))
-    .map(|(b, s1, s2)| SExpr::If(Box::new(b), Box::new(s1), Box::new(s2)))
-    .parse_next(s)
+    .parse_next(s)?;
+
+    let end_rest = *s;
+    Ok(span_wrapper_winnow(
+        source,
+        start_rest,
+        end_rest,
+        SExpr::If(Box::new(b), Box::new(s1), Box::new(s2)),
+    ))
 }
 
 fn defer(source: &str, s: &mut &str) -> Result<SpannedExpr> {
@@ -407,8 +430,9 @@ fn var_set(_source: &str, s: &mut &str) -> Result<EcoVec<VarName>> {
     .parse_next(s)
 }
 
-fn default(s: &mut &str) -> Result<SExpr> {
-    seq!((
+fn default(source: &str, s: &mut &str) -> Result<SpannedExpr> {
+    let start = *s;
+    let (lhs, rhs) = seq!((
         _: whitespace,
         _: literal("default"),
         _: '(',
@@ -892,7 +916,7 @@ fn abs(source: &str, s: &mut &str) -> Result<SpannedExpr> {
 }
 
 /// Fundamental expressions of the language
-fn atom(s: &mut &str) -> Result<SExpr> {
+fn atom(source: &str, s: &mut &str) -> Result<SpannedExpr> {
     // Break up the large alt into smaller groups to avoid exceeding the trait implementation limit
     delimited(
         whitespace,
@@ -1044,26 +1068,37 @@ impl BinaryPrecedences {
 /// @param current_op: The current precedence level
 ///
 /// (Inspired by https://github.com/winnow-rs/winnow/blob/main/examples/arithmetic/parser_ast.rs)
-fn binary_op(current_op: BinaryPrecedences) -> impl FnMut(&mut &str) -> Result<SExpr> {
+fn binary_op(
+    source: &str,
+    current_op: BinaryPrecedences,
+) -> impl FnMut(&mut &str) -> Result<SpannedExpr> {
     move |s: &mut &str| {
-        let next_parser_op = current_op.next();
-        let mut next_parser: Box<dyn FnMut(&mut &str) -> Result<SExpr>> = match next_parser_op {
-            Some(next_parser) => Box::new(binary_op(next_parser)),
-            None => Box::new(|i: &mut &str| atom.parse_next(i)),
-        };
-        let lit = current_op.get_lit();
+        let mut next_parser: Box<dyn FnMut(&mut &str) -> Result<SpannedExpr> + '_> =
+            match current_op.next() {
+                Some(next) => Box::new(binary_op(source, next)),
+                None => Box::new(|i: &mut &str| atom(source, i)),
+            };
+        let op_lit = current_op.get_lit();
+        let op = current_op.get_binop();
 
-        separated_foldl1(&mut next_parser, literal(lit), |left, _, right| {
-            SExpr::BinOp(Box::new(left), Box::new(right), current_op.get_binop())
+        separated_foldl1(&mut next_parser, literal(op_lit), move |left, _, right| {
+            Spanned {
+                node: SExpr::BinOp(Box::new(left.clone()), Box::new(right.clone()), op.clone()),
+                span: Span::new(left.span.start, right.span.end),
+            }
         })
         .parse_next(s)
     }
 }
+pub fn sexpr(s: &mut &str) -> Result<SpannedExpr> {
+    let source = *s;
+    sexpr_with_source(source, s)
+}
 
-pub fn sexpr(s: &mut &str) -> Result<SExpr> {
+pub fn sexpr_with_source(source: &str, s: &mut &str) -> Result<SpannedExpr> {
     delimited(
         whitespace,
-        binary_op(BinaryPrecedences::lowest_precedence()),
+        binary_op(source, BinaryPrecedences::lowest_precedence()),
         whitespace,
     )
     .parse_next(s)
@@ -1123,7 +1158,7 @@ pub(crate) fn output_decls(s: &mut &str) -> Result<Vec<(VarName, Option<StreamTy
 }
 
 pub(crate) fn aux_decl(s: &mut &str) -> Result<(VarName, Option<StreamType>)> {
-seq!(
+    seq!(
         _: whitespace,
         _: alt(("var", "aux")),
         _: loop_ms_or_lb_or_lc,
@@ -1139,7 +1174,7 @@ pub(crate) fn aux_decls(s: &mut &str) -> Result<Vec<(VarName, Option<StreamType>
     separated(0.., aux_decl, seq!(lb_or_lc, loop_ms_or_lb_or_lc)).parse_next(s)
 }
 
-pub(crate) fn assignment_decl(s: &mut &str) -> Result<(VarName, SExpr)> {
+pub(crate) fn assignment_decl(s: &mut &str) -> Result<(VarName, SpannedExpr)> {
     seq!((
         _: whitespace,
         ident,
@@ -1153,7 +1188,7 @@ pub(crate) fn assignment_decl(s: &mut &str) -> Result<(VarName, SExpr)> {
     .parse_next(s)
 }
 
-pub(crate) fn assignment_decls(s: &mut &str) -> Result<Vec<(VarName, SExpr)>> {
+pub(crate) fn assignment_decls(s: &mut &str) -> Result<Vec<(VarName, SpannedExpr)>> {
     separated(0.., assignment_decl, seq!(lb_or_lc, loop_ms_or_lb_or_lc)).parse_next(s)
 }
 
@@ -1189,11 +1224,11 @@ pub(crate) fn assignment_decls_with_source(
 
 pub fn dsrv_specification(s: &mut &str) -> Result<DsrvSpecification> {
     let source = *s;
-    lola_specification_with_source(source, s)
+    dsrv_specification_with_source(source, s)
 }
 
 // New for not losing source info in assignment declarations in the LOLA specification
-pub fn lola_specification_with_source(source: &str, s: &mut &str) -> Result<LOLASpecification> {
+pub fn dsrv_specification_with_source(source: &str, s: &mut &str) -> Result<DsrvSpecification> {
     terminated(
         seq!((
             _: loop_ms_or_lb_or_lc,
@@ -1241,6 +1276,8 @@ mod tests {
 
     use super::*;
     use test_log::test;
+    
+    type SExpr = SpannedExpr;
 
     #[test]
     fn test_streamdata() {

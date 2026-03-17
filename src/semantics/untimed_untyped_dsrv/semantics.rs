@@ -4,7 +4,7 @@ use super::combinators as mc;
 use crate::core::OutputStream;
 use crate::core::Value;
 use crate::lang::core::parser::ExprParser;
-use crate::lang::dsrv::ast::{BoolBinOp, CompBinOp, NumericalBinOp, SBinOp, SExpr, StrBinOp};
+use crate::lang::dsrv::ast::{BoolBinOp, CompBinOp, NumericalBinOp, SBinOp, SExpr, StrBinOp, SpannedExpr};
 use crate::semantics::AsyncConfig;
 use crate::semantics::MonitoringSemantics;
 use tracing::debug;
@@ -12,19 +12,19 @@ use tracing::debug;
 #[derive(Clone)]
 pub struct UntimedDsrvSemantics<Parser>
 where
-    Parser: ExprParser<SExpr> + 'static,
+    Parser: ExprParser<SpannedExpr> + 'static,
 {
     _parser: std::marker::PhantomData<Parser>,
 }
 
 impl<Parser, AC> MonitoringSemantics<AC> for UntimedDsrvSemantics<Parser>
 where
-    Parser: ExprParser<SExpr> + 'static,
-    AC: AsyncConfig<Val = Value, Expr = SExpr>,
+    Parser: ExprParser<SpannedExpr> + 'static,
+    AC: AsyncConfig<Val = Value, Expr = SpannedExpr>,
 {
-    fn to_async_stream(expr: SExpr, ctx: &AC::Ctx) -> OutputStream<Value> {
+    fn to_async_stream(expr: SpannedExpr, ctx: &AC::Ctx) -> OutputStream<Value> {
         debug!("Creating async stream for expression: {:?}", expr);
-        match expr {
+        match expr.node {
             SExpr::Val(v) => {
                 debug!("Constant value: {:?}", v);
                 mc::val(v)
@@ -246,7 +246,7 @@ mod tests {
     use crate::async_test;
     use crate::core::StreamTypeAscription;
     use crate::dsrv_fixtures::TestConfig;
-    use crate::lang::dsrv::ast::SExpr;
+    use crate::lang::dsrv::ast::SpannedExpr;
     use crate::lang::dsrv::lalr_parser::LALRParser;
     use crate::runtime::asynchronous::Context;
     use crate::semantics::StreamContext;
@@ -256,13 +256,13 @@ mod tests {
     use smol::LocalExecutor;
     use std::rc::Rc;
 
+    type SExpr = SpannedExpr;
     type Semantics = UntimedDsrvSemantics<LALRParser>;
     type TestCtx = Context<TestConfig>;
 
     fn to_stream(expr: SExpr, ctx: &TestCtx) -> OutputStream<Value> {
         <Semantics as MonitoringSemantics<TestConfig>>::to_async_stream(expr, ctx)
     }
-
     // ============================================================================
     // DEFER TESTS
     // ============================================================================

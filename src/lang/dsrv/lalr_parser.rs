@@ -8,7 +8,10 @@ use tracing::debug;
 
 use super::lalr::{ExprParser, TopDeclParser, TopDeclsParser};
 use crate::lang::core::parser::{ExprParser as EParserTrait, SpecParser as SParserTrait};
-use crate::{DsrvSpecification, lang::dsrv::ast::{STopDecl, SpannedExpr}};
+use crate::{
+    DsrvSpecification,
+    lang::dsrv::ast::{STopDecl, SpannedExpr},
+};
 
 #[derive(Clone)]
 pub struct LALRParser;
@@ -18,15 +21,17 @@ impl EParserTrait<SpannedExpr> for LALRParser {
         debug!("Parsing expr: {}", input);
         parse_sexpr(input)
     }
+    
+    //Could'nt get this to give an not anyhow error, so just return anyhow error for now. Would try again to get a more usefull error for the Language server if i have more type, for now i would just use the winnow parser then
+    type Error = anyhow::Error;
+    fn raw_parse_error(input: &mut &str) -> Result<SpannedExpr, Self::Error> {
+        parse_sexpr(input)
+    }
 }
+
 impl SParserTrait<DsrvSpecification> for LALRParser {
     fn parse(input: &mut &str) -> anyhow::Result<DsrvSpecification> {
         debug!("Parsing expr: {}", input);
-        parse_str(input)
-    }
-        //Could'nt get this to give an not anyhow error, so just return anyhow error for now. Would try again to get a more usefull error for the Language server if i have more type, for now i would just use the winnow parser then
-    type Error = anyhow::Error;
-    fn raw_parse_error(input: &mut &str) -> Result<LOLASpecification, Self::Error> {
         parse_str(input)
     }
 }
@@ -131,35 +136,35 @@ pub async fn parse_file<'file>(file: &'file str) -> anyhow::Result<DsrvSpecifica
     Ok(create_dsrv_spec(&stmts))
 }
 
-fn recover_stopdecls_prefix(input: &str, err_byte: usize) -> EcoVec<STopDecl> {
-    let mut ends: Vec<usize> = input
-        .char_indices()
-        .filter_map(|(i, ch)| (ch == '\n' && i <= err_byte).then_some(i + 1))
-        .collect();
+// Might come back to this later to make way to get the partial ast tree even if there is a parse error,
+// fn recover_stopdecls_prefix(input: &str, err_byte: usize) -> EcoVec<STopDecl> {
+//     let mut ends: Vec<usize> = input
+//         .char_indices()
+//         .filter_map(|(i, ch)| (ch == '\n' && i <= err_byte).then_some(i + 1))
+//         .collect();
 
-    ends.push(0);
-    ends.sort_unstable();
-    ends.dedup();
+//     ends.push(0);
+//     ends.sort_unstable();
+//     ends.dedup();
 
-    for end in ends.into_iter().rev() {
-        if let Ok(stmts) = TopDeclsParser::new().parse(&input[..end]) {
-            return stmts;
-        }
-    }
-    EcoVec::new()
-}
+//     for end in ends.into_iter().rev() {
+//         if let Ok(stmts) = TopDeclsParser::new().parse(&input[..end]) {
+//             return stmts;
+//         }
+//     }
+//     EcoVec::new()
+// }
 
-pub fn parser_str_lossy(input: &str) {
-  match TopDeclsParser::new().parse(input) {
-    Ok(stmts) => &stmts,
-    
-    Err(e) =>
-      let mut byte_pos = input.len();
-      let err_fixes = e.map_location(|byte|)
-    
-  }
-}
+// pub fn parser_str_lossy(input: &str) {
+//   match TopDeclsParser::new().parse(input) {
+//     Ok(stmts) => &stmts,
 
+//     Err(e) =>
+//       let mut byte_pos = input.len();
+//       let err_fixes = e.map_location(|byte|)
+
+//   }
+// }
 
 #[cfg(test)]
 mod tests {

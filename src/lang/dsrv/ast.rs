@@ -8,7 +8,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
-use crate::lang::dsrv::Span::*;
+use crate::lang::dsrv::span::*;
 
 // Numerical Binary Operations
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -229,7 +229,7 @@ impl SpannedExpr {
     pub fn Map(map: BTreeMap<EcoString, SpannedExpr>) -> Self {
         SExpr::Map(map).into()
     }
-    
+
     pub fn List(items: EcoVec<SpannedExpr>) -> Self {
         SExpr::List(items).into()
     }
@@ -304,7 +304,6 @@ pub enum SExpr {
     Dist(VarOrNodeName, VarOrNodeName),
 }
 
-
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
 pub enum STopDecl {
     Input(VarName, Option<StreamType>, Span),
@@ -376,7 +375,7 @@ impl SExpr {
                 inputs.extend(e2.inputs());
                 inputs
             }
-            
+
             MGet(e, _)
             | MInsert(e, _, _)
             | MRemove(e, _)
@@ -402,7 +401,7 @@ impl SExpr {
 pub struct DsrvSpecification {
     pub input_vars: Vec<VarName>,
     pub output_vars: Vec<VarName>,
-    pub exprs: BTreeMap<VarName, SExpr>,
+    pub exprs: BTreeMap<VarName, SpannedExpr>,
     pub type_annotations: BTreeMap<VarName, StreamType>,
     pub aux_info: Vec<VarName>,
 }
@@ -435,11 +434,13 @@ impl DsrvSpecification {
     fn fix_dynamic(
         input_vars: &Vec<VarName>,
         output_vars: &Vec<VarName>,
-        exprs: &BTreeMap<VarName, SExpr>,
-    ) -> BTreeMap<VarName, SExpr> {
+        exprs: &BTreeMap<VarName, SpannedExpr>,
+    ) -> BTreeMap<VarName, SpannedExpr> {
         // Helper function to do the changes...
-        fn traverse_expr(expr: SExpr, vars: &EcoVec<VarName>) -> SExpr {
-            match expr {
+        fn traverse_expr(expr: SpannedExpr, vars: &EcoVec<VarName>) -> SpannedExpr {
+            let span = expr.span; // Store the original span to reuse in the output expression
+            let new_kind = match expr.node {
+                // March to node in the span and do the necessary changes
                 // Transform Dynamic into RestrictedDynamic without the lhs of the assignment
                 SExpr::Dynamic(sexpr, sta) => SExpr::RestrictedDynamic(
                     Box::new(traverse_expr(*sexpr, vars)),
@@ -517,20 +518,20 @@ impl DsrvSpecification {
                     Box::new(traverse_expr(*sexpr2, vars)),
                 ),
                 SExpr::List(vec) => {
-                    let v = vec.clone(); // TODO: Delete when no longer cloning and
-                    // just iter() instead of into_iter()...
-                    v.into_iter().for_each(|sexpr| {
-                        traverse_expr(sexpr, vars);
-                    });
-                    SExpr::List(vec)
+                    //Added recursive traversal for lists.
+                    let new_vec = vec
+                        .into_iter()
+                        .map(|sexpr| traverse_expr(sexpr, vars))
+                        .collect();
+
+                    SExpr::List(new_vec)
                 }
                 SExpr::Map(map) => {
-                    let m = map.clone(); // TODO: Delete when no
-                    // longer cloning and just iter() instead of into_iter()...
-                    m.into_iter().for_each(|(_, v)| {
-                        traverse_expr(v, vars);
-                    });
-                    SExpr::Map(map)
+                    let new_map = map
+                        .into_iter()
+                        .map(|(k, v)| (k, traverse_expr(v, vars)))
+                        .collect();
+                    SExpr::Map(new_map)
                 }
                 SExpr::MGet(map, k) => SExpr::MGet(Box::new(traverse_expr(*map.clone(), vars)), k),
                 SExpr::MInsert(map, k, v) => SExpr::MInsert(
@@ -546,11 +547,13 @@ impl DsrvSpecification {
                 span,
             } // Output the new expression with the same span as the original
         }
+
         let vars: EcoVec<VarName> = input_vars
             .iter()
             .cloned()
             .chain(output_vars.iter().cloned())
             .collect();
+
         exprs
             .iter()
             .map(|(name, expr)| {
@@ -560,14 +563,14 @@ impl DsrvSpecification {
             .collect()
     }
 
-    pub fn exprs(&self) -> BTreeMap<VarName, SExpr> {
+    pub fn exprs(&self) -> BTreeMap<VarName, SpannedExpr> {
         self.exprs.clone()
     }
 
     pub fn new(
         input_vars: Vec<VarName>,
         output_vars: Vec<VarName>,
-        exprs: BTreeMap<VarName, SExpr>,
+        exprs: BTreeMap<VarName, SpannedExpr>,
         type_annotations: BTreeMap<VarName, StreamType>,
         aux_info: Vec<VarName>,
     ) -> Self {
@@ -583,7 +586,7 @@ impl DsrvSpecification {
 }
 
 impl Specification for DsrvSpecification {
-    type Expr = SExpr;
+     type Expr = SpannedExpr;
 
     fn input_vars(&self) -> Vec<VarName> {
         self.input_vars.clone()
@@ -593,8 +596,8 @@ impl Specification for DsrvSpecification {
         self.output_vars.clone()
     }
 
-    fn var_expr(&self, var: &VarName) -> Option<SExpr> {
-        Some(self.exprs.get(var)?.clone())
+    fn var_expr(&self, var: &VarName) -> Option<SpannedExpr> {
+        self.exprs.get(var).cloned()
     }
 
     fn add_input_var(&mut self, var: VarName) {
@@ -615,11 +618,12 @@ impl Specification for DsrvSpecification {
     }
 }
 
-impl Display for SExpr {
+
+impl Display for SpannedExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use SBinOp::*;
         use SExpr::*;
-        match self {
+        match &self.node {
             If(b, e1, e2) => write!(f, "if {} then {} else {}", b, e1, e2),
             SIndex(s, i) => write!(f, "{}[{}]", s, i),
             Val(n) => write!(f, "{}", n),
@@ -706,10 +710,12 @@ pub mod generation {
     use proptest::prelude::*;
 
     use crate::{
-        DsrvSpecification, SExpr, VarName,
-        lang::dsrv::ast::{BoolBinOp, SBinOp},
+        DsrvSpecification, VarName,
+        lang::dsrv::ast::{BoolBinOp, SBinOp, SpannedExpr},
     };
 
+    type SExpr = SpannedExpr;
+    
     pub fn arb_boolean_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
         let leaf = prop_oneof![
             any::<bool>().prop_map(|x| SExpr::Val(x.into())),

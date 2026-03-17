@@ -1,4 +1,5 @@
 use crate::SExpr;
+use crate::lang::dsrv::ast::SpannedExpr;
 use crate::core::StreamData;
 use crate::core::Value;
 use crate::lang::core::parser::ExprParser;
@@ -489,8 +490,8 @@ pub fn dynamic<AC, Parser>(
     history_length: usize,
 ) -> OutputStream<AC::Val>
 where
-    Parser: ExprParser<SExpr> + 'static,
-    AC: AsyncConfig<Val = Value, Expr = SExpr>,
+    Parser: ExprParser<SpannedExpr> + 'static,
+    AC: AsyncConfig<Val = Value, Expr = SpannedExpr>,
 {
     // Note: Slight change in dynamic's behavior after language became async and we introduced
     // NoVal. Consider the following behavior:
@@ -600,8 +601,8 @@ pub fn defer<AC, Parser>(
     history_length: usize,
 ) -> OutputStream<AC::Val>
 where
-    Parser: ExprParser<SExpr> + 'static,
-    AC: AsyncConfig<Val = Value, Expr = SExpr>,
+    Parser: ExprParser<SpannedExpr> + 'static,
+    AC: AsyncConfig<Val = Value, Expr = SpannedExpr>,
 {
     // Create a subcontext with a history window length
     let mut subcontext = ctx.restricted_subcontext(vs, history_length);
