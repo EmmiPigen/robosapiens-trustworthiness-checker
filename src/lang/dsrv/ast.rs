@@ -146,6 +146,7 @@ impl Into<String> for VarOrNodeName {
     }
 }
 
+#[derive(Default)]
 pub type SpannedExpr = Spanned<SExpr>;
 
 // Helper function to convert SExpr into SpannedExpr with a default span for the files that need use spans
