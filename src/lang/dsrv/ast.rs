@@ -744,6 +744,9 @@ pub mod generation {
         })
     }
 
+
+    type SExpr = SpannedExpr;
+    
     pub fn arb_boolean_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
         let leaf = prop_oneof![
             any::<bool>().prop_map(|x| SExpr::Val(x)),
