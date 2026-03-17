@@ -149,19 +149,14 @@ fn recover_stopdecls_prefix(input: &str, err_byte: usize) -> EcoVec<STopDecl> {
     EcoVec::new()
 }
 
-pub fn parser_str_lossy(input: &str) -> anyhow::Result<EcoVec<STopDecl>> {
+pub fn parser_str_lossy(input: &str) {
   match TopDeclsParser::new().parse(input) {
-    Ok(stmts) => Ok(stmts),
+    Ok(stmts) => &stmts,
     
-    Err(e) => {
+    Err(e) =>
       let mut byte_pos = input.len();
-      let err_fixed = e.map_location(|byte| {
-        byte_pos = byte;
-        line_col(input, byte);
-      });
-
-      Ok(recover_stopdecls_prefix(input, byte_pos))
-    }
+      let err_fixes = e.map_location(|byte|)
+    
   }
 }
 
