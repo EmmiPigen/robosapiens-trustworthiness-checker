@@ -286,8 +286,8 @@ pub enum SExpr {
 
     // Map and map expressions
     Map(BTreeMap<EcoString, SpannedExpr>), // Map from String to SExpr
-    MGet(Box<SpannedExpr>, EcoString),     // Get from map
     MInsert(Box<SpannedExpr>, EcoString, Box<SpannedExpr>), // Insert into map -- First is map, second is key, third is value
+    MGet(Box<SpannedExpr>, EcoString),     // Get from map
     MRemove(Box<SpannedExpr>, EcoString), // Remove from map -- First is map, second is key
     MHasKey(Box<SpannedExpr>, EcoString), // Check if map has key -- First is map, second is key
 
