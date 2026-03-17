@@ -4,7 +4,7 @@ use ecow::{EcoString, EcoVec};
 
 use crate::lang::dsrv::ast::{SExpr, STopDecl, SBinOp, NumericalBinOp, CompBinOp, BoolBinOp, StrBinOp, SpannedExpr};
 use crate::core::{Value, VarName, StreamType, StreamTypeAscription};
-use crate::lang::dynamic_lola::span::{Spanned, Span};
+use crate::lang::dsrv::span::{Spanned, Span};
 
 grammar;
 

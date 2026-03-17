@@ -8,6 +8,8 @@ use std::{
     fmt::{Debug, Display},
 };
 
+use crate::lang::dsrv::Span::*;
+
 // Numerical Binary Operations
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum NumericalBinOp {
@@ -236,12 +238,12 @@ impl SpannedExpr {
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
 pub enum SExpr {
     // if-then-else
-    If(Box<Self>, Box<Self>, Box<Self>),
+    If(Box<SpannedExpr>, Box<SpannedExpr>, Box<SpannedExpr>),
 
     // Stream indexing
     SIndex(
         // Inner SExpr e
-        Box<Self>,
+        Box<SpannedExpr>,
         // Index i
         u64,
     ),
@@ -249,59 +251,59 @@ pub enum SExpr {
     // Arithmetic Stream expression
     Val(Value),
 
-    BinOp(Box<Self>, Box<Self>, SBinOp),
+    BinOp(Box<SpannedExpr>, Box<SpannedExpr>, SBinOp),
 
     Var(VarName),
 
     // Dynamic, continuously updatable properties
-    Dynamic(Box<Self>, StreamTypeAscription),
-    RestrictedDynamic(Box<Self>, StreamTypeAscription, EcoVec<VarName>),
+    Dynamic(Box<SpannedExpr>, StreamTypeAscription),
+    RestrictedDynamic(Box<SpannedExpr>, StreamTypeAscription, EcoVec<VarName>),
     // Deferred properties
-    Defer(Box<Self>, StreamTypeAscription, EcoVec<VarName>),
+    Defer(Box<SpannedExpr>, StreamTypeAscription, EcoVec<VarName>),
     // Update between properties
-    Update(Box<Self>, Box<Self>),
+    Update(Box<SpannedExpr>, Box<SpannedExpr>),
     // Default value for properties (replaces Deferred with an alternative
     // stream)
-    Default(Box<Self>, Box<Self>),
-    IsDefined(Box<Self>), // True when .0 is not Deferred
-    When(Box<Self>),      // Becomes true after the first time .0 is not Deferred
+    Default(Box<SpannedExpr>, Box<SpannedExpr>),
+    IsDefined(Box<SpannedExpr>), // True when .0 is not Deferred
+    When(Box<SpannedExpr>),      // Becomes true after the first time .0 is not Deferred
 
     // Asynchronous operations
-    Latch(Box<Self>, Box<Self>),
-    Init(Box<Self>, Box<Self>),
+    Latch(Box<SpannedExpr>, Box<SpannedExpr>),
+    Init(Box<SpannedExpr>, Box<SpannedExpr>),
 
     // Unary expressions (refactor if more are added...)
-    Not(Box<Self>),
+    Not(Box<SpannedExpr>),
 
     // List and list expressions
-    List(EcoVec<Self>),
-    LIndex(Box<Self>, Box<Self>), // List index: First is list, second is index
-    LAppend(Box<Self>, Box<Self>), // List append -- First is list, second is el to add
-    LConcat(Box<Self>, Box<Self>), // List concat -- First is list, second is other list
-    LHead(Box<Self>),             // List head -- get first element of list
-    LTail(Box<Self>),             // List tail -- get all but first element of list
-    LLen(Box<Self>),              // List length -- returns length of the list
+    List(EcoVec<SpannedExpr>),
+    LIndex(Box<SpannedExpr>, Box<SpannedExpr>), // List index: First is list, second is index
+    LAppend(Box<SpannedExpr>, Box<SpannedExpr>), // List append -- First is list, second is el to add
+    LConcat(Box<SpannedExpr>, Box<SpannedExpr>), // List concat -- First is list, second is other list
+    LHead(Box<SpannedExpr>),                     // List head -- get first element of list
+    LTail(Box<SpannedExpr>),                     // List tail -- get all but first element of list
+    LLen(Box<SpannedExpr>),                      // List length -- returns length of the list
 
     // Map and map expressions
-    Map(BTreeMap<EcoString, Self>), // Map from String to SExpr
-    MGet(Box<Self>, EcoString),     // Get from map
-    MInsert(Box<Self>, EcoString, Box<Self>), // Insert into map -- First is map, second is key, third is value
-    MRemove(Box<Self>, EcoString),            // Remove from map -- First is map, second is key
-    MHasKey(Box<Self>, EcoString),            // Check if map has key -- First is map, second is key
+    Map(BTreeMap<EcoString, SpannedExpr>), // Map from String to SExpr
+    MGet(Box<SpannedExpr>, EcoString),     // Get from map
+    MInsert(Box<SpannedExpr>, EcoString, Box<SpannedExpr>), // Insert into map -- First is map, second is key, third is value
+    MRemove(Box<SpannedExpr>, EcoString), // Remove from map -- First is map, second is key
+    MHasKey(Box<SpannedExpr>, EcoString), // Check if map has key -- First is map, second is key
 
     // Trigonometric functions
-    Sin(Box<Self>),
-    Cos(Box<Self>),
-    Tan(Box<Self>),
+    Sin(Box<SpannedExpr>),
+    Cos(Box<SpannedExpr>),
+    Tan(Box<SpannedExpr>),
 
     // Other math functions
-    Abs(Box<Self>),
+    Abs(Box<SpannedExpr>),
 
     // Distribution Constraint Specific
     MonitoredAt(VarName, NodeName),
     Dist(VarOrNodeName, VarOrNodeName),
-
 }
+
 
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
 pub enum STopDecl {
