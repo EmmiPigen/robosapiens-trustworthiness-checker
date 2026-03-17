@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
+use ecow::eco_vec;
 use ecow::EcoString;
 use ecow::EcoVec;
-use ecow::eco_vec;
 use tracing::debug;
-use winnow::Parser;
-use winnow::Result;
 use winnow::combinator::*;
 use winnow::token::literal;
+use winnow::Parser;
+use winnow::Result;
 
 use super::super::core::parser::*;
 use super::ast::*;
