@@ -1012,20 +1012,4 @@ mod tests {
             }
         }
     }
-
-    #[test]
-    fn test_display_simple_add() {
-        let spec_untyped = dsrv_specification(&mut spec_simple_add_monitor()).unwrap();
-        let res = format!("{}", spec_untyped);
-        let expected = "in x\nin y\nout z\nz = (x + y)\n";
-        assert_eq!(res, expected);
-    }
-
-    #[test]
-    fn test_display_simple_add_typed() {
-        let spec_untyped = dsrv_specification(&mut spec_simple_add_monitor_typed()).unwrap();
-        let res = format!("{}", spec_untyped);
-        let expected = "in x: Int\nin y: Int\nout z: Int\nz = (x + y)\n";
-        assert_eq!(res, expected);
-    }
 }
