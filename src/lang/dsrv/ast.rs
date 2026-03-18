@@ -891,6 +891,89 @@ pub mod generation {
 
     type SExpr = SpannedExpr;
     
+    // Mixed type expressions. Note that these are not fully recursively mixed-type as we switch to
+    // single type expressions within the individual branches of the mixed type expression
+    pub fn arb_mixed_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
+        let bool_leaf = prop_oneof![
+            any::<bool>().prop_map(|x| SExpr::Val(x)),
+            proptest::sample::select(vars.clone()).prop_map(|x| SExpr::Var(x.clone())),
+        ];
+
+        let int_cmp = prop_oneof![
+            (arb_int_sexpr(vars.clone()), arb_int_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Eq))
+            }),
+            (arb_int_sexpr(vars.clone()), arb_int_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Le))
+            }),
+            (arb_int_sexpr(vars.clone()), arb_int_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Lt))
+            }),
+            (arb_int_sexpr(vars.clone()), arb_int_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Ge))
+            }),
+            (arb_int_sexpr(vars.clone()), arb_int_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Gt))
+            }),
+        ];
+
+        let float_cmp = prop_oneof![
+            (arb_float_sexpr(vars.clone()), arb_float_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Eq))
+            }),
+            (arb_float_sexpr(vars.clone()), arb_float_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Le))
+            }),
+            (arb_float_sexpr(vars.clone()), arb_float_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Lt))
+            }),
+            (arb_float_sexpr(vars.clone()), arb_float_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Ge))
+            }),
+            (arb_float_sexpr(vars.clone()), arb_float_sexpr(vars.clone())).prop_map(|(a, b)| {
+                SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Gt))
+            }),
+        ];
+
+        let string_cmp = prop_oneof![
+            (
+                arb_string_sexpr(vars.clone()),
+                arb_string_sexpr(vars.clone())
+            )
+                .prop_map(|(a, b)| {
+                    SExpr::BinOp(Box::new(a), Box::new(b), SBinOp::COp(CompBinOp::Eq))
+                }),
+        ];
+
+        let comparison_leaf = prop_oneof![int_cmp, float_cmp, string_cmp];
+
+        prop_oneof![bool_leaf, comparison_leaf].prop_recursive(5, 50, 10, |inner| {
+            prop_oneof![
+                (inner.clone(), inner.clone()).prop_map(|(a, b)| SExpr::BinOp(
+                    Box::new(a),
+                    Box::new(b),
+                    SBinOp::BOp(BoolBinOp::Or)
+                )),
+                (inner.clone(), inner.clone()).prop_map(|(a, b)| SExpr::BinOp(
+                    Box::new(a),
+                    Box::new(b),
+                    SBinOp::BOp(BoolBinOp::And)
+                )),
+                (inner.clone(), inner.clone()).prop_map(|(a, b)| SExpr::BinOp(
+                    Box::new(a),
+                    Box::new(b),
+                    SBinOp::BOp(BoolBinOp::Impl)
+                )),
+                (inner.clone(), inner.clone(), inner.clone()).prop_map(|(c, t, e)| SExpr::If(
+                    Box::new(c),
+                    Box::new(t),
+                    Box::new(e),
+                )),
+                inner.clone().prop_map(|a| SExpr::Not(Box::new(a))),
+            ]
+        })
+    }
+
     pub fn arb_boolean_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
         let leaf = prop_oneof![
             any::<bool>().prop_map(|x| SExpr::Val(x)),
