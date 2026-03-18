@@ -1266,6 +1266,9 @@ pub fn dsrv_specification_with_source(source: &str, s: &mut &str) -> Result<Dsrv
     .parse_next(s)
 }
 
+
+
+
 #[cfg(test)]
 mod tests {
     use crate::core::Value;
@@ -1345,7 +1348,7 @@ mod tests {
         assert_eq!(
             sexpr(&mut (*"if true then 1 else 2".to_string()).into())?,
             SExpr::If(
-                Box::new(SExpr::Val(true.into())),
+                Box::new(SExpr::Val(true)),
                 Box::new(SExpr::Val(Value::Int(1))),
                 Box::new(SExpr::Val(Value::Int(2))),
             ),
@@ -1381,7 +1384,7 @@ mod tests {
             sexpr(&mut (*"(stage == \"m\")").into())?,
             SExpr::BinOp(
                 Box::new(SExpr::Var("stage".into())),
-                Box::new(SExpr::Val("m".into())),
+                Box::new(SExpr::Val("m")),
                 SBinOp::COp(CompBinOp::Eq),
             )
         );

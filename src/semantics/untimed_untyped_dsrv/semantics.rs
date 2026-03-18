@@ -270,7 +270,7 @@ mod tests {
     #[apply(async_test)]
     async fn test_defer_int(executor: Rc<LocalExecutor<'static>>) {
         let expr = SExpr::Defer(
-            Box::new(SExpr::Val("x + 1".into())),
+            Box::new(SExpr::Val("x + 1")),
             StreamTypeAscription::Unascribed,
             eco_vec!["x".into()],
         );
@@ -289,7 +289,7 @@ mod tests {
     #[apply(async_test)]
     async fn test_defer_int_x_squared(executor: Rc<LocalExecutor<'static>>) {
         let expr = SExpr::Defer(
-            Box::new(SExpr::Val("x * x".into())),
+            Box::new(SExpr::Val("x * x")),
             StreamTypeAscription::Unascribed,
             eco_vec!["x".into()],
         );
@@ -308,7 +308,7 @@ mod tests {
     #[apply(async_test)]
     async fn test_defer_bool(executor: Rc<LocalExecutor<'static>>) {
         let expr = SExpr::Defer(
-            Box::new(SExpr::Val("x && y".into())),
+            Box::new(SExpr::Val("x && y")),
             StreamTypeAscription::Unascribed,
             eco_vec!["x".into(), "y".into()],
         );
@@ -360,7 +360,7 @@ mod tests {
     #[apply(async_test)]
     async fn test_defer_float(executor: Rc<LocalExecutor<'static>>) {
         let expr = SExpr::Defer(
-            Box::new(SExpr::Val("x + 1.5".into())),
+            Box::new(SExpr::Val("x + 1.5")),
             StreamTypeAscription::Unascribed,
             eco_vec!["x".into()],
         );
@@ -379,7 +379,7 @@ mod tests {
     #[apply(async_test)]
     async fn test_defer_str(executor: Rc<LocalExecutor<'static>>) {
         let expr = SExpr::Defer(
-            Box::new(SExpr::Val("x ++ y".into())),
+            Box::new(SExpr::Val("x ++ y")),
             StreamTypeAscription::Unascribed,
             eco_vec!["x".into(), "y".into()],
         );

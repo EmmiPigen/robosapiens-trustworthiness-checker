@@ -173,12 +173,14 @@ mod tests {
 
     use crate::VarName;
     use crate::lang::dsrv::ast::NumericalBinOp;
-    use crate::lang::dsrv::ast::SBinOp;
+    use crate::lang::dsrv::ast::{SBinOp, SpannedExpr};
 
     use crate::core::StreamTypeAscription;
 
     use super::*;
     use test_log::test;
+    
+    type SExpr = SpannedExpr;
 
     #[test]
     fn test_streamdata() {
@@ -373,7 +375,7 @@ mod tests {
             exprs: BTreeMap::from([(
                 "x".into(),
                 SExpr::BinOp(
-                    Box::new(SExpr::Val(1.into())),
+                    Box::new(SExpr::Val(1)),
                     Box::new(SExpr::SIndex(Box::new(SExpr::Var("x".into())), 1)),
                     SBinOp::NOp(NumericalBinOp::Add),
                 ),

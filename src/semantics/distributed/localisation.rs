@@ -94,13 +94,13 @@ mod tests {
 
     use crate::dsrv_fixtures::spec_simple_add_decomposable;
     use crate::dsrv_specification;
-    use crate::lang::dsrv::ast::SExpr;
+    use crate::lang::dsrv::ast::SpannedExpr;
     use proptest::prelude::*;
     use test_log::test;
     use winnow::Parser;
 
     use crate::lang::dsrv::ast::generation::arb_boolean_dsrv_spec;
-
+    type SExpr = SpannedExpr;
     use super::*;
 
     #[test]

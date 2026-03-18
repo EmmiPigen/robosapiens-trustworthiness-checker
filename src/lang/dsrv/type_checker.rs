@@ -1485,7 +1485,7 @@ mod tests {
         let vals_tmp = generate_if_combinations(&variants, &variants, bexpr.clone());
         let vals = vals_tmp.into_iter().filter(|bin_op: &SpannedExpr| {
             match &bin_op.node {
-                crate::lang::dynamic_lola::ast::SExpr::If(_, t, f) => t != f,
+                crate::lang::dsrv::ast::SExpr::If(_, t, f) => t != f,
                 _ => true, // Keep non-BinOps (unused in this case)
             }
         });
