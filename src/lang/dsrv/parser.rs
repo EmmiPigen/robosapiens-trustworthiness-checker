@@ -2058,7 +2058,7 @@ mod tests {
             r#"Ok(List([Val(Int(1)), Val(Str("hello"))]))"#
         );
         assert_eq!(
-            assignment_decl(&mut "y = List()"),
+            _assignment_decl(&mut "y = List()"),
             Ok(("y".into(), SExpr::List(eco_vec![])))
         )
     }
@@ -2179,7 +2179,7 @@ mod tests {
             r#"Ok(Map({"x": Val(Int(1)), "y": Val(Str("hello"))}))"#
         );
         assert_eq!(
-            assignment_decl(&mut "y = Map()"),
+            _assignment_decl(&mut "y = Map()"),
             Ok(("y".into(), SExpr::Map(BTreeMap::new())))
         )
     }
