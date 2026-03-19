@@ -73,7 +73,7 @@ fn sexpr_list(source: &str, s: &mut &str) -> Result<SpannedExpr> {
 }
 
 pub fn key_sexpr(source: &str, s: &mut &str) -> Result<(EcoString, SpannedExpr)> {
-    let start_rest = *s;
+    let _start_rest = *s;
     seq!(
         _: loop_ms_or_lb_or_lc, string,
         _: ':',
@@ -1174,7 +1174,7 @@ pub(crate) fn aux_decls(s: &mut &str) -> Result<Vec<(VarName, Option<StreamType>
     separated(0.., aux_decl, seq!(lb_or_lc, loop_ms_or_lb_or_lc)).parse_next(s)
 }
 
-pub(crate) fn assignment_decl(s: &mut &str) -> Result<(VarName, SpannedExpr)> {
+pub(crate) fn _assignment_decl(s: &mut &str) -> Result<(VarName, SpannedExpr)> {
     seq!((
         _: whitespace,
         ident,
@@ -1188,8 +1188,8 @@ pub(crate) fn assignment_decl(s: &mut &str) -> Result<(VarName, SpannedExpr)> {
     .parse_next(s)
 }
 
-pub(crate) fn assignment_decls(s: &mut &str) -> Result<Vec<(VarName, SpannedExpr)>> {
-    separated(0.., assignment_decl, seq!(lb_or_lc, loop_ms_or_lb_or_lc)).parse_next(s)
+pub(crate) fn _assignment_decls(s: &mut &str) -> Result<Vec<(VarName, SpannedExpr)>> {
+    separated(0.., _assignment_decl, seq!(lb_or_lc, loop_ms_or_lb_or_lc)).parse_next(s)
 }
 
 // New for not losing source info in assignment declarations
@@ -1901,19 +1901,19 @@ mod tests {
     #[test]
     fn test_assignment_decl() {
         assert_eq!(
-            presult_to_string(&assignment_decl(&mut "x = 0")),
+            presult_to_string(&_assignment_decl(&mut "x = 0")),
             r#"Ok((VarName::new("x"), Val(Int(0))))"#
         );
         assert_eq!(
-            presult_to_string(&assignment_decl(&mut r#"x = "hello""#)),
+            presult_to_string(&_assignment_decl(&mut r#"x = "hello""#)),
             r#"Ok((VarName::new("x"), Val(Str("hello"))))"#
         );
         assert_eq!(
-            presult_to_string(&assignment_decl(&mut "x = true")),
+            presult_to_string(&_assignment_decl(&mut "x = true")),
             r#"Ok((VarName::new("x"), Val(Bool(true))))"#
         );
         assert_eq!(
-            presult_to_string(&assignment_decl(&mut "x = false")),
+            presult_to_string(&_assignment_decl(&mut "x = false")),
             r#"Ok((VarName::new("x"), Val(Bool(false))))"#
         );
     }

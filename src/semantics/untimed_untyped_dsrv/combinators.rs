@@ -1,4 +1,3 @@
-use crate::SExpr;
 use crate::lang::dsrv::ast::SpannedExpr;
 use crate::core::StreamData;
 use crate::core::Value;
