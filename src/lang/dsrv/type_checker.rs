@@ -6,6 +6,7 @@ use super::ast::{
 use crate::core::{StreamData, StreamType, StreamTypeAscription};
 use crate::{DsrvSpecification, Specification};
 use crate::{Value, VarName};
+use crate::lang::dsrv::span::Span;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
