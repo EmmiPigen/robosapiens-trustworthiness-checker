@@ -220,6 +220,37 @@ impl SpannedExpr {
         SExpr::Defer(Box::new((*e).into()), t, vs).into()
     }
 
+    pub fn Default<L, R>(l: Box<L>, r: Box<R>) -> Self
+    where
+        L: Into<SpannedExpr>,
+        R: Into<SpannedExpr>,
+    {
+        SExpr::Default(Box::new((*l).into()), Box::new((*r).into())).into()
+    }
+
+    pub fn When<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::When(Box::new((*e).into())).into()
+    }
+
+    pub fn Update<L, R>(l: Box<L>, r: Box<R>) -> Self
+    where
+        L: Into<SpannedExpr>,
+        R: Into<SpannedExpr>,
+    {
+        SExpr::Update(Box::new((*l).into()), Box::new((*r).into())).into()
+    }
+
+    pub fn Latch<V, T>(v: Box<V>, t: Box<T>) -> Self
+    where
+        V: Into<SpannedExpr>,
+        T: Into<SpannedExpr>,
+    {
+        SExpr::Latch(Box::new((*v).into()), Box::new((*t).into())).into()
+    }
+
     pub fn Not<E>(e: Box<E>) -> Self
     where
         E: Into<SpannedExpr>,
@@ -233,6 +264,34 @@ impl SpannedExpr {
 
     pub fn List(items: EcoVec<SpannedExpr>) -> Self {
         SExpr::List(items).into()
+    }
+
+    pub fn Sin<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Sin(Box::new((*e).into())).into()
+    }
+
+    pub fn Cos<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Cos(Box::new((*e).into())).into()
+    }
+
+    pub fn Tan<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Tan(Box::new((*e).into())).into()
+    }
+
+    pub fn Abs<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Abs(Box::new((*e).into())).into()
     }
 }
 
@@ -587,7 +646,7 @@ impl DsrvSpecification {
 }
 
 impl Specification for DsrvSpecification {
-     type Expr = SpannedExpr;
+    type Expr = SpannedExpr;
 
     fn input_vars(&self) -> Vec<VarName> {
         self.input_vars.clone()
@@ -618,7 +677,6 @@ impl Specification for DsrvSpecification {
         );
     }
 }
-
 
 impl Display for SpannedExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -746,12 +804,12 @@ pub mod generation {
     };
 
     type SExpr = SpannedExpr;
-    
+
     // Mixed type expressions. Note that these are not fully recursively mixed-type as we switch to
     // single type expressions within the individual branches of the mixed type expression
     pub fn arb_mixed_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
         let bool_leaf = prop_oneof![
-            any::<bool>().prop_map(|x| SExpr::Val(x.into())),
+            any::<bool>().prop_map(|x| SExpr::Val(x)),
             proptest::sample::select(vars.clone()).prop_map(|x| SExpr::Var(x.clone())),
         ];
 
@@ -858,7 +916,7 @@ pub mod generation {
 
     pub fn arb_int_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
         let leaf = prop_oneof![
-            any::<i64>().prop_map(|x| SExpr::Val(x.into())),
+            any::<i64>().prop_map(|x| SExpr::Val(x)),
             proptest::sample::select(vars.clone()).prop_map(|x| SExpr::Var(x.clone())),
         ];
         leaf.prop_recursive(5, 50, 10, move |inner| {
@@ -907,7 +965,7 @@ pub mod generation {
             any::<f64>()
                 .prop_filter("finite non-integer float", |x| x.is_finite()
                     && x.fract() != 0.0)
-                .prop_map(|x| SExpr::Val(x.into())),
+                .prop_map(|x| SExpr::Val(x)),
             proptest::sample::select(vars.clone()).prop_map(|x| SExpr::Var(x.clone())),
         ];
         leaf.prop_recursive(5, 50, 10, move |inner| {
