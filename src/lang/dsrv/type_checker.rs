@@ -6,15 +6,16 @@ use super::ast::{
 use crate::core::{StreamData, StreamType, StreamTypeAscription};
 use crate::{DsrvSpecification, Specification};
 use crate::{Value, VarName};
+use crate::lang::dsrv::span::Span;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum SemanticError {
-    TypeError(String),
-    DeferredError(String),
-    UndeclaredVariable(String),
+    TypeError(String, Span),
+    DeferredError(String, Span),
+    UndeclaredVariable(String, Span),
 }
 
 pub type SemanticErrors = Vec<SemanticError>;
@@ -27,12 +28,13 @@ pub trait TypeCheckableHelper<TypedExpr> {
         &self,
         ctx: &mut TypeInfo,
         errs: &mut SemanticErrors,
+        span: Span,
     ) -> Result<TypedExpr, ()>;
 }
 impl<TypedExpr, R: TypeCheckableHelper<TypedExpr>> TypeCheckable<TypedExpr> for R {
     fn type_check(&self, context: &mut TypeInfo) -> SemanticResult<TypedExpr> {
         let mut errors = Vec::new();
-        let res = self.type_check_raw(context, &mut errors);
+        let res = self.type_check_raw(context, &mut errors, Span::default());
         match res {
             Ok(se) => Ok(se),
             Err(()) => Err(errors),
@@ -419,7 +421,7 @@ pub fn type_check(spec: DsrvSpecification) -> SemanticResult<TypedDsrvSpecificat
     let mut errors = vec![];
     for (var, expr) in spec.exprs.iter() {
         let mut ctx = type_context.clone();
-        let typed_expr = expr.type_check_raw(&mut ctx, &mut errors);
+        let typed_expr = expr.type_check_raw(&mut ctx, &mut errors, expr.span);
         typed_exprs.insert(var, typed_expr);
     }
     if errors.is_empty() {
@@ -438,7 +440,7 @@ pub fn type_check(spec: DsrvSpecification) -> SemanticResult<TypedDsrvSpecificat
 }
 
 impl TypeCheckableHelper<SExprTE> for Value {
-    fn type_check_raw(&self, _: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, _: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
         match self {
             Value::Int(v) => Ok(SExprTE::Int(SExprInt::Val(PartialStreamValue::Known(*v)))),
             Value::Float(v) => Ok(SExprTE::Float(SExprFloat::Val(PartialStreamValue::Known(
@@ -455,7 +457,7 @@ impl TypeCheckableHelper<SExprTE> for Value {
                 errs.push(SemanticError::DeferredError(format!(
                     "Stream expression {:?} not assigned a type before semantic analysis",
                     self
-                )));
+                ), span));
                 Err(())
             }
             // Not sure how the type-checking should deal with a value not provided
@@ -467,10 +469,10 @@ impl TypeCheckableHelper<SExprTE> for Value {
 
 // Type check a binary operation
 impl TypeCheckableHelper<SExprTE> for (SBinOp, &SpannedExpr, &SpannedExpr) {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
         let (op, se1, se2) = self;
-        let se1_check = se1.type_check_raw(ctx, errs);
-        let se2_check = se2.type_check_raw(ctx, errs);
+        let se1_check = se1.type_check_raw(ctx, errs, se1.span);
+        let se2_check = se2.type_check_raw(ctx, errs, se2.span);
 
         match (op, se1_check, se2_check) {
             // Integer operations
@@ -484,6 +486,7 @@ impl TypeCheckableHelper<SExprTE> for (SBinOp, &SpannedExpr, &SpannedExpr) {
                     Err(_) => {
                         errs.push(SemanticError::TypeError(
                             "Numerical operation not valid on integers".into(),
+                            span
                         ));
                         Err(())
                     }
@@ -499,7 +502,8 @@ impl TypeCheckableHelper<SExprTE> for (SBinOp, &SpannedExpr, &SpannedExpr) {
                     ))),
                     Err(_) => {
                         errs.push(SemanticError::TypeError(
-                            "Numerical operation not valid on integers".into(),
+                            "Numerical operation not valid on floats".into(),
+                            span
                         ));
                         Err(())
                     }
@@ -584,7 +588,7 @@ impl TypeCheckableHelper<SExprTE> for (SBinOp, &SpannedExpr, &SpannedExpr) {
                 errs.push(SemanticError::TypeError(format!(
                     "Cannot apply binary function {:?} to expressions of type {:?} and {:?}",
                     op, ste1, ste2
-                )));
+                ), span));
                 Err(())
             }
             // If the underlying values already result in an error then simply propagate
@@ -595,10 +599,10 @@ impl TypeCheckableHelper<SExprTE> for (SBinOp, &SpannedExpr, &SpannedExpr) {
 
 // Type check a default operation
 impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr) {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
         let (se1, se2) = *self;
-        let se1_check = se1.type_check_raw(ctx, errs);
-        let se2_check = se2.type_check_raw(ctx, errs);
+        let se1_check = se1.type_check_raw(ctx, errs, se1.span);
+        let se2_check = se2.type_check_raw(ctx, errs, se2.span);
 
         match (se1_check, se2_check) {
             (Ok(ste1), Ok(ste2)) => {
@@ -620,9 +624,9 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr) {
                     )),
                     (stenum1, stenum2) => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Cannot create if-expression with two different types: {:?} and {:?}",
+                            "Cannot create default-expression with two different types: {:?} and {:?}",
                             stenum1, stenum2
-                        )));
+                        ), span));
                         Err(())
                     }
                 }
@@ -635,11 +639,11 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr) {
 
 // Type check an if expression
 impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr, &SpannedExpr) {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
         let (b, se1, se2) = *self;
-        let b_check = b.type_check_raw(ctx, errs);
-        let se1_check = se1.type_check_raw(ctx, errs);
-        let se2_check = se2.type_check_raw(ctx, errs);
+        let b_check = b.type_check_raw(ctx, errs, b.span);
+        let se1_check = se1.type_check_raw(ctx, errs, se1.span);
+        let se2_check = se2.type_check_raw(ctx, errs, se2.span);
 
         match (b_check, se1_check, se2_check) {
             (Ok(SExprTE::Bool(b)), Ok(ste1), Ok(ste2)) => {
@@ -669,7 +673,7 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr, &SpannedExpr)
                         errs.push(SemanticError::TypeError(format!(
                             "Cannot create if-expression with two different types: {:?} and {:?}",
                             stenum1, stenum2
-                        )));
+                        ), span));
                         Err(())
                     }
                 }
@@ -677,6 +681,7 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr, &SpannedExpr)
             (Ok(_), Ok(_), Ok(_)) => {
                 errs.push(SemanticError::TypeError(
                     "If expression condition must be a boolean".into(),
+                    span
                 ));
                 Err(())
             }
@@ -688,9 +693,9 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr, &SpannedExpr)
 
 // Type check an index expression
 impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, u64) {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
         let (inner, idx) = *self;
-        let inner_check = inner.type_check_raw(ctx, errs);
+        let inner_check = inner.type_check_raw(ctx, errs, inner.span);
 
         match inner_check {
             Ok(ste) => match ste {
@@ -708,6 +713,7 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, u64) {
                             "Mismatched type in Stream Index expression, expression and default does not match: {:?}",
                             se
                         ),
+                        span
                     ));
                     Err(())
                 }
@@ -720,7 +726,7 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, u64) {
 
 // Type check a variable
 impl TypeCheckableHelper<SExprTE> for VarName {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
         let type_opt = ctx.get(self);
         match type_opt {
             Some(t) => match t {
@@ -734,7 +740,7 @@ impl TypeCheckableHelper<SExprTE> for VarName {
                 errs.push(SemanticError::UndeclaredVariable(format!(
                     "Usage of undeclared variable: {:?}",
                     self
-                )));
+                ), span));
                 Err(())
             }
         }
@@ -742,9 +748,9 @@ impl TypeCheckableHelper<SExprTE> for VarName {
 }
 
 impl TypeCheckableHelper<SExprTE> for (SpannedExpr, StreamTypeAscription) {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
         let (expr, ascription) = self;
-        let expr_te = expr.type_check_raw(ctx, errs)?;
+        let expr_te = expr.type_check_raw(ctx, errs, expr.span)?;
 
         match ascription {
             StreamTypeAscription::Unascribed => Ok(expr_te),
@@ -756,7 +762,7 @@ impl TypeCheckableHelper<SExprTE> for (SpannedExpr, StreamTypeAscription) {
                     errs.push(SemanticError::TypeError(format!(
                         "Type mismatch: expected {:?}, got {:?}",
                         expected_ty, actual_ty
-                    )));
+                    ), span));
                     Err(())
                 }
             }
@@ -766,27 +772,28 @@ impl TypeCheckableHelper<SExprTE> for (SpannedExpr, StreamTypeAscription) {
 
 // Type check an expression
 impl TypeCheckableHelper<SExprTE> for SpannedExpr {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
+        let span = self.span; // Use the specific span of this AST node
         match &self.node {
-            SExpr::Val(sdata) => sdata.type_check_raw(ctx, errs),
+            SExpr::Val(sdata) => sdata.type_check_raw(ctx, errs, span),
             SExpr::BinOp(se1, se2, op) => {
-                (op.clone(), se1.deref(), se2.deref()).type_check_raw(ctx, errs)
+                (op.clone(), se1.deref(), se2.deref()).type_check_raw(ctx, errs, span)
             }
             SExpr::If(b, se1, se2) => {
-                (b.deref(), se1.deref(), se2.deref()).type_check_raw(ctx, errs)
+                (b.deref(), se1.deref(), se2.deref()).type_check_raw(ctx, errs, span)
             }
-            SExpr::SIndex(inner, idx) => (inner.deref(), *idx).type_check_raw(ctx, errs),
-            SExpr::Var(id) => id.type_check_raw(ctx, errs),
+            SExpr::SIndex(inner, idx) => (inner.deref(), *idx).type_check_raw(ctx, errs, span),
+            SExpr::Var(id) => id.type_check_raw(ctx, errs, span),
             SExpr::Dynamic(e, type_ascription) => {
-                let e_check = e.type_check_raw(ctx, errs)?;
+                let e_check = e.type_check_raw(ctx, errs, e.span)?;
 
                 // Ascriptions are required for defers in strictly-typed expressions
                 let type_ascription = match type_ascription {
                     StreamTypeAscription::Ascribed(ta) => ta,
                     StreamTypeAscription::Unascribed => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Type ascription required for defer"
-                        )));
+                            "Type ascription required for dynamic"
+                        ), span));
                         return Err(());
                     }
                 };
@@ -798,7 +805,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                         errs.push(SemanticError::TypeError(format!(
                             "Expected Dynamic to be applied to a Str, got {:?}",
                             ty
-                        )));
+                        ), span));
                         return Err(());
                     }
                 };
@@ -828,7 +835,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                 }
             }
             SExpr::RestrictedDynamic(e, type_ascription, vs) => {
-                let e_check = e.type_check_raw(ctx, errs)?;
+                let e_check = e.type_check_raw(ctx, errs, e.span)?;
 
                 // Inner stream type must be Str
                 let e_str = match e_check {
@@ -837,7 +844,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                         errs.push(SemanticError::TypeError(format!(
                             "Expected RestrictedDynamic to be applied to a Str, got {:?}",
                             ty
-                        )));
+                        ), span));
                         return Err(());
                     }
                 };
@@ -847,8 +854,8 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     StreamTypeAscription::Ascribed(ta) => ta,
                     StreamTypeAscription::Unascribed => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Type ascription required for dynamic"
-                        )));
+                            "Type ascription required for restricted dynamic"
+                        ), span));
                         return Err(());
                     }
                 };
@@ -883,7 +890,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                 }
             }
             SExpr::Defer(e, type_ascription, vs) => {
-                let e_check = e.type_check_raw(ctx, errs)?;
+                let e_check = e.type_check_raw(ctx, errs, e.span)?;
 
                 // Ascriptions are required for defer in strictly-typed expressions
                 let type_ascription = match type_ascription {
@@ -891,7 +898,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     StreamTypeAscription::Unascribed => {
                         errs.push(SemanticError::TypeError(format!(
                             "Type ascription required for defer"
-                        )));
+                        ), span));
                         return Err(());
                     }
                 };
@@ -903,7 +910,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                         errs.push(SemanticError::TypeError(format!(
                             "Expected Defer to be applied to a Str, got {:?}",
                             ty
-                        )));
+                        ), span));
                         return Err(());
                     }
                 };
@@ -938,14 +945,15 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                 }
             }
             SExpr::Update(_, _) => todo!("Implement support for Update"),
-            SExpr::Default(se, d) => (se.deref(), d.deref()).type_check_raw(ctx, errs),
+            SExpr::Default(se, d) => (se.deref(), d.deref()).type_check_raw(ctx, errs, span),
             SExpr::Not(sexpr) => {
-                let sexpr_check = sexpr.type_check_raw(ctx, errs)?;
+                let sexpr_check = sexpr.type_check_raw(ctx, errs, sexpr.span)?;
                 match sexpr_check {
                     SExprTE::Bool(se) => Ok(SExprTE::Bool(SExprBool::Not(Box::new(se)))),
                     _ => {
                         errs.push(SemanticError::TypeError(
                             "Not can only be applied to boolean expressions".into(),
+                            span
                         ));
                         Err(())
                     }
@@ -959,7 +967,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
             SExpr::LTail(_) => todo!("Implement support for typed LTail"),
             SExpr::LLen(_) => todo!("Implement support for typed LLen"),
             SExpr::IsDefined(sexpr) => {
-                let sexpr_check = sexpr.type_check_raw(ctx, errs)?;
+                let sexpr_check = sexpr.type_check_raw(ctx, errs, sexpr.span)?;
                 match sexpr_check {
                     SExprTE::Int(se) => Ok(SExprTE::Bool(SExprBool::IsDefinedInt(se))),
                     SExprTE::Float(se) => Ok(SExprTE::Bool(SExprBool::IsDefinedFloat(se))),
@@ -969,7 +977,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                 }
             }
             SExpr::When(sexpr) => {
-                let sexpr_check = sexpr.type_check_raw(ctx, errs)?;
+                let sexpr_check = sexpr.type_check_raw(ctx, errs, sexpr.span)?;
                 match sexpr_check {
                     SExprTE::Int(se) => Ok(SExprTE::Bool(SExprBool::WhenInt(se))),
                     SExprTE::Float(se) => Ok(SExprTE::Bool(SExprBool::WhenFloat(se))),
@@ -980,8 +988,8 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
             }
             SExpr::Latch(_, _) => todo!("Implement support for typed Latch"),
             SExpr::Init(se1, se2) => {
-                let se1_check = se1.type_check_raw(ctx, errs);
-                let se2_check = se2.type_check_raw(ctx, errs);
+                let se1_check = se1.type_check_raw(ctx, errs, se1.span);
+                let se2_check = se2.type_check_raw(ctx, errs, se2.span);
                 match (se1_check, se2_check) {
                     (Ok(SExprTE::Int(e1)), Ok(SExprTE::Int(e2))) => {
                         Ok(SExprTE::Int(SExprInt::Init(Box::new(e1), Box::new(e2))))
@@ -1002,53 +1010,53 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                         errs.push(SemanticError::TypeError(format!(
                             "Init requires both arguments to have the same type, got {:?} and {:?}",
                             ste1, ste2
-                        )));
+                        ), span));
                         Err(())
                     }
                     _ => Err(()),
                 }
             }
             SExpr::Sin(sexpr) => {
-                let sexpr_check = sexpr.type_check_raw(ctx, errs)?;
+                let sexpr_check = sexpr.type_check_raw(ctx, errs, sexpr.span)?;
                 match sexpr_check {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Sin(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
                             "Sin can only be applied to float expressions, got {:?}",
                             other
-                        )));
+                        ), span));
                         Err(())
                     }
                 }
             }
             SExpr::Cos(sexpr) => {
-                let sexpr_check = sexpr.type_check_raw(ctx, errs)?;
+                let sexpr_check = sexpr.type_check_raw(ctx, errs, sexpr.span)?;
                 match sexpr_check {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Cos(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
                             "Cos can only be applied to float expressions, got {:?}",
                             other
-                        )));
+                        ), span));
                         Err(())
                     }
                 }
             }
             SExpr::Tan(sexpr) => {
-                let sexpr_check = sexpr.type_check_raw(ctx, errs)?;
+                let sexpr_check = sexpr.type_check_raw(ctx, errs, sexpr.span)?;
                 match sexpr_check {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Tan(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
                             "Tan can only be applied to float expressions, got {:?}",
                             other
-                        )));
+                        ), span));
                         Err(())
                     }
                 }
             }
             SExpr::Abs(sexpr) => {
-                let sexpr_check = sexpr.type_check_raw(ctx, errs)?;
+                let sexpr_check = sexpr.type_check_raw(ctx, errs, sexpr.span)?;
                 match sexpr_check {
                     SExprTE::Int(se) => Ok(SExprTE::Int(SExprInt::Abs(Box::new(se)))),
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Abs(Box::new(se)))),
@@ -1056,7 +1064,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                         errs.push(SemanticError::TypeError(format!(
                             "Abs can only be applied to numeric expressions, got {:?}",
                             other
-                        )));
+                        ), span));
                         Err(())
                     }
                 }
@@ -1264,7 +1272,7 @@ mod tests {
         // Checks that if a Val is deferred during semantic analysis it produces a DeferredError
         let val = SExprV::Val(Value::Deferred);
         let result = val.type_check_with_default();
-        let expected: SemantResultStr = Err(vec![SemanticError::DeferredError("".into())]);
+        let expected: SemantResultStr = Err(vec![SemanticError::DeferredError("".into(), Span::default())]);
         check_correct_error_type(&result, &expected);
     }
 
@@ -1288,8 +1296,8 @@ mod tests {
             .map(TypeCheckable::type_check_with_default)
             .collect();
         let expected: Vec<SemantResultStr> = vec![
-            Err(vec![SemanticError::TypeError("".into())]),
-            Err(vec![SemanticError::TypeError("".into())]),
+            Err(vec![SemanticError::TypeError("".into(), Span::default())]),
+            Err(vec![SemanticError::TypeError("".into(), Span::default())]),
         ];
         check_correct_error_types(&results, &expected);
     }
@@ -1328,7 +1336,7 @@ mod tests {
         // we'll expect each result to be an Err with a type error.
         let expected: Vec<SemantResultStr> = results
             .iter()
-            .map(|_| Err(vec![SemanticError::TypeError("".into())]))
+            .map(|_| Err(vec![SemanticError::TypeError("".into(), Span::default())]))
             .collect();
 
         check_correct_error_types(&results, &expected);
@@ -1498,7 +1506,7 @@ mod tests {
         // we'll expect each result to be an Err with a type error.
         let expected: Vec<SemantResultStr> = results
             .iter()
-            .map(|_| Err(vec![SemanticError::TypeError("".into())]))
+            .map(|_| Err(vec![SemanticError::TypeError("".into(), Span::default())]))
             .collect();
 
         check_correct_error_types(&results, &expected);
@@ -1544,7 +1552,7 @@ mod tests {
 
         let val = SExprV::Var("undeclared_name".into());
         let result = val.type_check_with_default();
-        let expected: SemantResultStr = Err(vec![SemanticError::UndeclaredVariable("".into())]);
+        let expected: SemantResultStr = Err(vec![SemanticError::UndeclaredVariable("".into(), Span::default())]);
         check_correct_error_type(&result, &expected);
     }
     // TODO: Test that any SExpr leaf is a Val. If not it should return a Type-Error
