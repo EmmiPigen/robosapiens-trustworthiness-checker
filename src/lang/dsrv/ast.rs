@@ -746,7 +746,7 @@ pub mod generation {
 
 
     type SExpr = SpannedExpr;
-    
+
     // Mixed type expressions. Note that these are not fully recursively mixed-type as we switch to
     // single type expressions within the individual branches of the mixed type expression
     pub fn arb_mixed_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
