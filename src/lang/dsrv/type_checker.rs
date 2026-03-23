@@ -1086,7 +1086,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
 use std::fmt;
 
 impl fmt::Display for SExprTE {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       SExprTE::Int(inner) => write!(f, "integer {:?}", inner),
       SExprTE::Float(inner) => write!(f, "float {:?}", inner),
