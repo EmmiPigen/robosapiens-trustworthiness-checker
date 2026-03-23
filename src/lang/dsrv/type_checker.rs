@@ -6,12 +6,15 @@ use super::ast::{
 use crate::core::{StreamData, StreamType, StreamTypeAscription};
 use crate::{DsrvSpecification, Specification};
 use crate::{Value, VarName};
-use crate::lang::dsrv::span::Span;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 
+// Added span crate
+use crate::lang::dsrv::span::Span;
+
 #[derive(Debug, PartialEq, Eq)]
+// Added span information to errors for LSP
 pub enum SemanticError {
     TypeError(String, Span),
     DeferredError(String, Span),
@@ -28,13 +31,13 @@ pub trait TypeCheckableHelper<TypedExpr> {
         &self,
         ctx: &mut TypeInfo,
         errs: &mut SemanticErrors,
-        span: Span,
+        span: Span, // Added span to type checker
     ) -> Result<TypedExpr, ()>;
 }
 impl<TypedExpr, R: TypeCheckableHelper<TypedExpr>> TypeCheckable<TypedExpr> for R {
     fn type_check(&self, context: &mut TypeInfo) -> SemanticResult<TypedExpr> {
         let mut errors = Vec::new();
-        let res = self.type_check_raw(context, &mut errors, Span::default());
+        let res = self.type_check_raw(context, &mut errors, Span::default()); // 
         match res {
             Ok(se) => Ok(se),
             Err(()) => Err(errors),
@@ -1079,6 +1082,26 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
         }
     }
 }
+
+use std::fmt;
+
+impl fmt::Display for SExprTE {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self {
+      SExprTE::Int(inner) => write!(f, "integer {:?}", inner),
+      SExprTE::Float(inner) => write!(f, "float {:?}", inner),
+      SExprTE::Bool(inner) => write!(f, "bool {:?}", inner),
+      SExprTE::Str(inner) => write!(f, "string {:?}", inner),
+      SExprTE::Unit(inner) => write!(f, "unit {:?}", inner),
+      _ => write!(f, "<expr>"),
+    }
+  }
+  
+  
+} 
+
+
+
 
 #[cfg(test)]
 mod tests {
