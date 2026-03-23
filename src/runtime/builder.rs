@@ -36,13 +36,13 @@ use static_assertions::assert_obj_safe;
 
 // Various AsyncConfigs to use
 #[rustfmt::skip]
-define_config!(ValueConfig, Val = Value, Expr = SpannedExpr, Ctx = Context);
+define_config!(ValueConfig, Val = Value, Expr = SpannedExpr, Ctx = Context, Spec = DsrvSpecification);
 #[rustfmt::skip]
-define_config!(TypedValueConfig, Val = Value, Expr = SExprTE, Ctx = Context);
+define_config!(TypedValueConfig, Val = Value, Expr = SExprTE, Ctx = Context, Spec = TypedDsrvSpecification);
 #[rustfmt::skip]
-define_config!(DistValueConfig, Val = Value, Expr = SpannedExpr, Ctx = DistributedContext);
+define_config!(DistValueConfig, Val = Value, Expr = SpannedExpr, Ctx = DistributedContext, Spec = DsrvSpecification);
 #[rustfmt::skip]
-define_config!(SemiSyncValueConfig, Val = Value, Expr = SpannedExpr, Ctx = SemiSyncContext);
+define_config!(SemiSyncValueConfig, Val = Value, Expr = SpannedExpr, Ctx = SemiSyncContext, Spec = DsrvSpecification);
 
 pub trait AnonymousMonitorBuilder<M, V: StreamData>: 'static {
     fn executor(
