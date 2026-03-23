@@ -1038,7 +1038,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Cos(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Cos can only be applied to float expressions, got {:?}",
+                            "Cos can only be applied to float expressions, got {}",
                             other
                         ), span));
                         Err(())
@@ -1051,7 +1051,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Tan(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Tan can only be applied to float expressions, got {:?}",
+                            "Tan can only be applied to float expressions, got {}",
                             other
                         ), span));
                         Err(())
@@ -1065,7 +1065,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Abs(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Abs can only be applied to numeric expressions, got {:?}",
+                            "Abs can only be applied to numeric expressions, got {}",
                             other
                         ), span));
                         Err(())
