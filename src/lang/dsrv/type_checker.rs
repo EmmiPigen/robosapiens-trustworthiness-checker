@@ -1083,32 +1083,6 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
     }
 }
 
-use std::fmt;
-
-impl fmt::Display for SExprFloat {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-      match self {
-        SExprFloat::Val(PartialStreamValue::Known(val)) => write!(f, "{:.1}", val),
-        SExprFloat::Val(PartialStreamValue::NoVal) => write!(f, "NoVal"),
-        SExprFloat::Val(PartialStreamValue::Deferred) => write!(f, "Deferred"),
-        
-        
-        SExprFloat::Var(name) => write!(f, "{}", name),
-        
-        SExprFloat::BinOp(lhs, rhs, op) => write!(f, "({} {:?} {})", lhs, op, rhs),
-        
-        SExprFloat::RestrictedDynamic(expr, vars, t) => write!(f, "Dynamic({:?}, {:?}, {{{:?}}})", expr, t, vars),
-        
-        _ => write!(f, "{:?}", self)
-        
-      }
-  }
-}
-
-
-
-
-
 
 
 #[cfg(test)]
