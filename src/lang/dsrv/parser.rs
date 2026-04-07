@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use ecow::eco_vec;
 use ecow::EcoString;
 use ecow::EcoVec;
+use ecow::eco_vec;
 use tracing::debug;
-use winnow::combinator::*;
-use winnow::token::literal;
 use winnow::Parser;
 use winnow::Result;
+use winnow::combinator::*;
+use winnow::token::literal;
 
 use super::super::core::parser::*;
 use super::ast::*;
@@ -111,7 +111,14 @@ fn var(source: &str, s: &mut &str) -> Result<SpannedExpr> {
     let start = *s;
     let v = var_name.parse_next(s)?;
     let end = *s;
-    Ok(span_wrapper_winnow(source, start, end, SExpr::Var(v)))
+    Ok(SpannedExpr::VarAt(
+        v,
+        Span::new(
+            (source.len() - start.len()) as u32,
+            (source.len() - end.len()) as u32,
+        ),
+    ))
+    // Ok(span_wrapper_winnow(source, start, end, SExpr::Var(v)))
 }
 
 fn var_name(s: &mut &str) -> Result<VarName> {
@@ -1266,9 +1273,6 @@ pub fn dsrv_specification_with_source(source: &str, s: &mut &str) -> Result<Dsrv
     .parse_next(s)
 }
 
-
-
-
 #[cfg(test)]
 mod tests {
     use crate::core::Value;
@@ -1279,7 +1283,7 @@ mod tests {
 
     use super::*;
     use test_log::test;
-    
+
     type SExpr = SpannedExpr;
 
     #[test]
