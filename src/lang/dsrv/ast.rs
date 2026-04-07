@@ -162,6 +162,16 @@ impl From<SExpr> for SpannedExpr {
 // for quicker migration to the spans
 #[allow(non_snake_case)]
 impl SpannedExpr {
+    pub fn with_span(node: SExpr, span: Span) -> Self {
+        Spanned {
+            node: node,
+            span: span,
+        }
+    }
+    pub fn VarAt(v: VarName, span: Span) -> Self {
+        Self::with_span(SExpr::Var(v), span)
+    }
+
     pub fn Val(v: impl Into<Value>) -> Self {
         SExpr::Val(v.into()).into()
     }
@@ -459,6 +469,7 @@ impl SExpr {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct DsrvSpecification {
+    //TODO: Add location information to the variable without having to change a lot of the codebase
     pub input_vars: Vec<VarName>,
     pub output_vars: Vec<VarName>,
     pub exprs: BTreeMap<VarName, SpannedExpr>,
