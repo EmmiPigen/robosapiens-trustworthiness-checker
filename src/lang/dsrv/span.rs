@@ -1,8 +1,18 @@
+use ecow::{EcoString, EcoVec};
 use serde;
+use std::collections::BTreeMap;
 use std::ops::{Deref, Range};
 
-use crate::{SExpr, lang::dsrv::ast::SpannedExpr};
+use crate::core::{StreamTypeAscription, Value, VarName};
 
+use crate::{
+    SExpr,
+    lang::dsrv::ast::{SBinOp, SpannedExpr},
+};
+
+
+
+// Span struct designed by IWANABETHATGUY in the l-lang repository at https://github.com/IWANABETHATGUY/l-lang/blob/master/crates/parser/src/span.rs
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug, serde::Serialize)]
 pub struct Span {
     pub start: u32,
@@ -12,26 +22,6 @@ pub struct Span {
 impl Span {
     pub fn new(start: u32, end: u32) -> Self {
         Self { start, end }
-    }
-
-    // Returns the length of the span.
-    pub fn len(&self) -> u32 {
-        self.end - self.start
-    }
-
-    // Returns true if the span is empty.
-    pub fn is_empty(&self) -> bool {
-        self.start == self.end
-    }
-
-    // Convert to a Range<usize> for compatibility with codespan-reporting.
-    pub fn to_range(&self) -> Range<usize> {
-        self.start as usize..self.end as usize
-    }
-
-    // Returns true if this span contains the given offset.
-    pub fn contains_offset(&self, offset: u32) -> bool {
-        self.start <= offset && offset <= self.end
     }
 }
 
@@ -56,6 +46,9 @@ impl From<&Span> for Range<usize> {
     }
 }
 
+
+
+// Generic Spanned struct that can be used to wrap any node with a span, used for the SExpr nodes in the AST to keep track of their location in the source code.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug, serde::Serialize)]
 pub struct Spanned<T> {
     pub node: T,
@@ -67,6 +60,152 @@ impl<T> Deref for Spanned<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.node
+    }
+}
+
+// Helper functions to create SpannedExprs without having to specify the span every time for quicker migration to the spans
+#[allow(non_snake_case)]
+impl SpannedExpr {
+    pub fn with_span(node: SExpr, span: Span) -> Self {
+        Spanned {
+            node: node,
+            span: span,
+        }
+    }
+    pub fn VarAt(v: VarName, span: Span) -> Self {
+        Self::with_span(SExpr::Var(v), span)
+    }
+
+    pub fn Val(v: impl Into<Value>) -> Self {
+        SExpr::Val(v.into()).into()
+    }
+
+    pub fn Var(v: VarName) -> Self {
+        SExpr::Var(v).into()
+    }
+
+    pub fn BinOp<L, R>(lhs: Box<L>, rhs: Box<R>, op: SBinOp) -> Self
+    where
+        L: Into<SpannedExpr>,
+        R: Into<SpannedExpr>,
+    {
+        SExpr::BinOp(Box::new((*lhs).into()), Box::new((*rhs).into()), op).into()
+    }
+
+    pub fn If<C, T, E>(c: Box<C>, t: Box<T>, e: Box<E>) -> Self
+    where
+        C: Into<SpannedExpr>,
+        T: Into<SpannedExpr>,
+        E: Into<SpannedExpr>,
+    {
+        SExpr::If(
+            Box::new((*c).into()),
+            Box::new((*t).into()),
+            Box::new((*e).into()),
+        )
+        .into()
+    }
+
+    pub fn SIndex<E>(e: Box<E>, idx: u64) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::SIndex(Box::new((*e).into()), idx).into()
+    }
+
+    pub fn Dynamic<E>(e: Box<E>, t: StreamTypeAscription) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Dynamic(Box::new((*e).into()), t).into()
+    }
+
+    pub fn RestrictedDynamic<E>(e: Box<E>, t: StreamTypeAscription, vs: EcoVec<VarName>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::RestrictedDynamic(Box::new((*e).into()), t, vs).into()
+    }
+
+    pub fn Defer<E>(e: Box<E>, t: StreamTypeAscription, vs: EcoVec<VarName>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Defer(Box::new((*e).into()), t, vs).into()
+    }
+
+    pub fn Default<L, R>(l: Box<L>, r: Box<R>) -> Self
+    where
+        L: Into<SpannedExpr>,
+        R: Into<SpannedExpr>,
+    {
+        SExpr::Default(Box::new((*l).into()), Box::new((*r).into())).into()
+    }
+
+    pub fn When<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::When(Box::new((*e).into())).into()
+    }
+
+    pub fn Update<L, R>(l: Box<L>, r: Box<R>) -> Self
+    where
+        L: Into<SpannedExpr>,
+        R: Into<SpannedExpr>,
+    {
+        SExpr::Update(Box::new((*l).into()), Box::new((*r).into())).into()
+    }
+
+    pub fn Latch<V, T>(v: Box<V>, t: Box<T>) -> Self
+    where
+        V: Into<SpannedExpr>,
+        T: Into<SpannedExpr>,
+    {
+        SExpr::Latch(Box::new((*v).into()), Box::new((*t).into())).into()
+    }
+
+    pub fn Not<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Not(Box::new((*e).into())).into()
+    }
+
+    pub fn Map(map: BTreeMap<EcoString, SpannedExpr>) -> Self {
+        SExpr::Map(map).into()
+    }
+
+    pub fn List(items: EcoVec<SpannedExpr>) -> Self {
+        SExpr::List(items).into()
+    }
+
+    pub fn Sin<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Sin(Box::new((*e).into())).into()
+    }
+
+    pub fn Cos<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Cos(Box::new((*e).into())).into()
+    }
+
+    pub fn Tan<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Tan(Box::new((*e).into())).into()
+    }
+
+    pub fn Abs<E>(e: Box<E>) -> Self
+    where
+        E: Into<SpannedExpr>,
+    {
+        SExpr::Abs(Box::new((*e).into())).into()
     }
 }
 
@@ -90,4 +229,14 @@ pub fn offset(source: &str, rest_start: &str, rest_end: &str) -> Span {
     let end = source.len() - rest_end.len();
 
     Span::new(start as u32, end as u32)
+}
+
+// Helper function to convert SExpr into SpannedExpr with a default span for the files that need use spans
+impl From<SExpr> for SpannedExpr {
+    fn from(node: SExpr) -> Self {
+        Spanned {
+            node,
+            span: Span::default(),
+        }
+    }
 }
