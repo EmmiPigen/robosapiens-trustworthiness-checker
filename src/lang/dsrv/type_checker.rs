@@ -6,7 +6,7 @@ use super::ast::{
 use crate::core::{StreamData, StreamType, StreamTypeAscription};
 use crate::{DsrvSpecification, Specification};
 use crate::{Value, VarName};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
@@ -590,6 +590,7 @@ pub enum SExprTE {
 pub struct TypedDsrvSpecification {
     pub input_vars: Vec<VarName>,
     pub output_vars: Vec<VarName>,
+    pub aux_info: BTreeSet<VarName>,
     pub exprs: BTreeMap<VarName, SExprTE>,
     pub type_annotations: BTreeMap<VarName, StreamType>,
 }
@@ -620,6 +621,10 @@ impl Specification for TypedDsrvSpecification {
 
     fn output_vars(&self) -> Vec<VarName> {
         self.output_vars.clone()
+    }
+
+    fn aux_vars(&self) -> BTreeSet<VarName> {
+        self.aux_info.clone()
     }
 
     fn var_expr(&self, var: &VarName) -> Option<SExprTE> {
@@ -654,6 +659,7 @@ pub fn type_check(spec: DsrvSpecification) -> SemanticResult<TypedDsrvSpecificat
         Ok(TypedDsrvSpecification {
             input_vars: spec.input_vars.clone(),
             output_vars: spec.output_vars.clone(),
+            aux_info: spec.aux_info.clone().into_iter().collect(),
             exprs: typed_exprs
                 .into_iter()
                 .map(|(k, v)| (k.clone(), v.unwrap()))
@@ -2144,6 +2150,7 @@ mod tests {
         let spec = TypedDsrvSpecification {
             input_vars,
             output_vars,
+            aux_info: BTreeSet::new(),
             exprs,
             type_annotations,
         };
@@ -2202,6 +2209,7 @@ mod tests {
                     Some(TypedDsrvSpecification {
                         input_vars: fixed_inputs.clone(),
                         output_vars: vec!["x".into(), "y".into(), "d".into()],
+                        aux_info: BTreeSet::new(),
                         exprs: BTreeMap::from([
                             ("x".into(), typed_x),
                             ("y".into(), typed_y),
