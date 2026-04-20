@@ -10,8 +10,6 @@ use crate::{
     lang::dsrv::ast::{SBinOp, SpannedExpr},
 };
 
-
-
 // Span struct designed by IWANABETHATGUY in the l-lang repository at https://github.com/IWANABETHATGUY/l-lang/blob/master/crates/parser/src/span.rs
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug, serde::Serialize)]
 pub struct Span {
@@ -46,10 +44,8 @@ impl From<&Span> for Range<usize> {
     }
 }
 
-
-
 // Generic Spanned struct that can be used to wrap any node with a span, used for the SExpr nodes in the AST to keep track of their location in the source code.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug, serde::Serialize)]
+#[derive(Clone, Copy, Eq, Hash, PartialOrd, Ord, Default, Debug, serde::Serialize)]
 pub struct Spanned<T> {
     pub node: T,
     pub span: Span,
@@ -62,6 +58,25 @@ impl<T> Deref for Spanned<T> {
         &self.node
     }
 }
+
+impl<T: PartialEq> PartialEq for Spanned<T> {
+  fn eq(&self, other: &Self) -> bool {
+      self.node == other.node
+  }
+}
+
+// Unspan trait for when we want to discard the span information and just get the inner node, used for the unit test
+// pub trait Unspan {
+//     type Output;
+//     fn unspan(self) -> Self::Output;
+// }
+
+// impl<T> Unspan for Spanned<T> {
+//     type Output = T;
+//     fn unspan(self) -> T {
+//         self.node
+//     }
+// }
 
 // Helper functions to create SpannedExprs without having to specify the span every time for quicker migration to the spans
 #[allow(non_snake_case)]
@@ -239,4 +254,73 @@ impl From<SExpr> for SpannedExpr {
             span: Span::default(),
         }
     }
+}
+
+pub fn strip_span(e: &Spanned<SExpr>) -> String {
+    match &e.node {
+        SExpr::Var(v) => format!("Var({:?})", v),
+        SExpr::Val(v) => format!("Val({:?})", v),
+
+        SExpr::If(a, b, c) => format!(
+            "If({}, {}, {})",
+            strip_span(a),
+            strip_span(b),
+            strip_span(c),
+        ),
+
+        SExpr::BinOp(l, r, op) => format!("BinOp({}, {}, {:?})", strip_span(l), strip_span(r), op,),
+
+        SExpr::SIndex(e, idx) => format!("SIndex({}, {})", strip_span(e), idx),
+        SExpr::Dynamic(e, t) => format!("Dynamic({}, {:?})", strip_span(e), t),
+        SExpr::RestrictedDynamic(e, t, vs) => {
+            format!("RestrictedDynamic({}, {:?}, {:?})", strip_span(e), t, vs)
+        }
+        SExpr::Defer(e, t, vs) => format!("Defer({}, {:?}, {:?})", strip_span(e), t, vs),
+        SExpr::Update(l, r) => format!("Update({}, {})", strip_span(l), strip_span(r)),
+        SExpr::Default(l, r) => format!("Default({}, {})", strip_span(l), strip_span(r)),
+        SExpr::IsDefined(e) => format!("IsDefined({})", strip_span(e)),
+        SExpr::When(e) => format!("When({})", strip_span(e)),
+        SExpr::Latch(v, t) => format!("Latch({}, {})", strip_span(v), strip_span(t)),
+        SExpr::Init(e1, e2) => format!("Init({}, {})", strip_span(e1), strip_span(e2)),
+        SExpr::Not(e) => format!("Not({})", strip_span(e)),
+        SExpr::List(es) => {
+            let items = es
+                .iter()
+                .map(|e| strip_span(e))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("List([{}])", items)
+        }
+        SExpr::LAppend(lst, e1) => format!("LAppend({}, {})", strip_span(lst), strip_span(e1)),
+        SExpr::LIndex(e, i) => format!("LIndex({}, {})", strip_span(e), strip_span(i)),
+        SExpr::LConcat(lst, e1) => format!("LConcat({}, {})", strip_span(lst), strip_span(e1)),
+        SExpr::LHead(e) => format!("LHead({})", strip_span(e)),
+        SExpr::LTail(e) => format!("LTail({})", strip_span(e)),
+        SExpr::LLen(e) => format!("LLen({})", strip_span(e)),
+
+        SExpr::Map(map) => {
+            let items = map
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, strip_span(v)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("Map({{{}}})", items)
+        }
+        SExpr::MGet(e, k) => format!("MGet({}, {})", strip_span(e), k),
+        SExpr::MInsert(e, k, v) => format!("MInsert({}, {}, {})", strip_span(e), k, strip_span(v)),
+        SExpr::MRemove(e, k) => format!("MRemove({}, {})", strip_span(e), k),
+
+        SExpr::MHasKey(e, k) => format!("MHasKey({}, {})", strip_span(e), k),
+
+        SExpr::Sin(e) => format!("Sin({})", strip_span(e)),
+        SExpr::Cos(e) => format!("Cos({})", strip_span(e)),
+        SExpr::Tan(e) => format!("Tan({})", strip_span(e)),
+        SExpr::Abs(e) => format!("Abs({})", strip_span(e)),
+        SExpr::MonitoredAt(v, n) => format!("MonitoredAt({}, {})", v, n),
+        SExpr::Dist(v, u) => format!("Dist({}, {})", v, u),
+    }
+}
+
+pub fn presult_strip_span(e: &Spanned<SExpr>) -> String {
+    format!("Ok({})", strip_span(e))
 }
