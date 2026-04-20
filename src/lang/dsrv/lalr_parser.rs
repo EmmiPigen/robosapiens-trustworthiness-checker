@@ -136,38 +136,10 @@ pub async fn parse_file<'file>(file: &'file str) -> anyhow::Result<DsrvSpecifica
     Ok(create_dsrv_spec(&stmts))
 }
 
-// Might come back to this later to make way to get the partial ast tree even if there is a parse error,
-// fn recover_stopdecls_prefix(input: &str, err_byte: usize) -> EcoVec<STopDecl> {
-//     let mut ends: Vec<usize> = input
-//         .char_indices()
-//         .filter_map(|(i, ch)| (ch == '\n' && i <= err_byte).then_some(i + 1))
-//         .collect();
-
-//     ends.push(0);
-//     ends.sort_unstable();
-//     ends.dedup();
-
-//     for end in ends.into_iter().rev() {
-//         if let Ok(stmts) = TopDeclsParser::new().parse(&input[..end]) {
-//             return stmts;
-//         }
-//     }
-//     EcoVec::new()
-// }
-
-// pub fn parser_str_lossy(input: &str) {
-//   match TopDeclsParser::new().parse(input) {
-//     Ok(stmts) => &stmts,
-
-//     Err(e) =>
-//       let mut byte_pos = input.len();
-//       let err_fixes = e.map_location(|byte|)
-
-//   }
-// }
 
 #[cfg(test)]
 mod tests {
+  // TODO: Fix the test
     use crate::core::StreamType;
     use crate::lang::core::parser::presult_to_string;
 
@@ -176,6 +148,7 @@ mod tests {
     use crate::lang::dsrv::ast::{SBinOp, SpannedExpr};
 
     use crate::core::StreamTypeAscription;
+    use crate::lang::dsrv::span::presult_strip_span;
 
     use super::*;
     use test_log::test;
@@ -186,11 +159,11 @@ mod tests {
     fn test_streamdata() {
         let parsed = parse_sexpr("42");
         let exp = "Ok(Val(Int(42)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("42.0");
         let exp = "Ok(Val(Float(42.0)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         // Unsupported:
         // let parsed = parse_str("1e-1");
@@ -199,65 +172,65 @@ mod tests {
 
         let parsed = parse_sexpr("\"abc2d\"");
         let exp = "Ok(Val(Str(\"abc2d\")))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("true");
         let exp = "Ok(Val(Bool(true)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("false");
         let exp = "Ok(Val(Bool(false)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("\"x+y\"");
         let exp = "Ok(Val(Str(\"x+y\")))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
     }
 
     #[test]
     fn test_sexpr() {
         let parsed = parse_sexpr("1 + 2");
         let exp = "Ok(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("1 + 2 * 3");
         let exp = "Ok(BinOp(Val(Int(1)), BinOp(Val(Int(2)), Val(Int(3)), NOp(Mul)), NOp(Add)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("x + (y + 2)");
         let exp = "Ok(BinOp(Var(VarName::new(\"x\")), BinOp(Var(VarName::new(\"y\")), Val(Int(2)), NOp(Add)), NOp(Add)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("if true then 1 else 2");
         let exp = "Ok(If(Val(Bool(true)), Val(Int(1)), Val(Int(2))))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("(x)[1]");
         let exp = "Ok(SIndex(Var(VarName::new(\"x\")), 1))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("(x + y)[3]");
         let exp =
             "Ok(SIndex(BinOp(Var(VarName::new(\"x\")), Var(VarName::new(\"y\")), NOp(Add)), 3))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("1 + (x)[1]");
         let exp = "Ok(BinOp(Val(Int(1)), SIndex(Var(VarName::new(\"x\")), 1), NOp(Add)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("\"test\"");
         let exp = "Ok(Val(Str(\"test\")))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
 
         let parsed = parse_sexpr("(stage == \"m\")");
         let exp = "Ok(BinOp(Var(VarName::new(\"stage\")), Val(Str(\"m\")), COp(Eq)))";
-        assert_eq!(presult_to_string(&parsed), exp);
+        assert_eq!(presult_strip_span(&parsed.unwrap()), exp);
     }
 
     #[test]
     fn test_input_decl() {
         let parsed = parse_stopdecl(&mut "in x");
-        let exp = r#"Ok(Input(VarName::new("x"), None))"#;
+        let exp = r#"Ok(Input(VarName::new("x"), None, Span { start: 0, end: 4 }))"#;
         assert_eq!(presult_to_string(&parsed), exp);
 
         // Not sure if we should allow this, but this is how it currently works. As long as we
@@ -271,11 +244,11 @@ mod tests {
     #[test]
     fn test_typed_input_decl() {
         let parsed = parse_stopdecl("in x: Int");
-        let exp = r#"Ok(Input(VarName::new("x"), Some(Int)))"#;
+        let exp = r#"Ok(Input(VarName::new("x"), Some(Int), Span { start: 0, end: 9 }))"#;
         assert_eq!(presult_to_string(&parsed), exp);
 
         let parsed = parse_stopdecl("in x: Float");
-        let exp = r#"Ok(Input(VarName::new("x"), Some(Float)))"#;
+        let exp = r#"Ok(Input(VarName::new("x"), Some(Float), Span { start: 0, end: 11 }))"#;
         assert_eq!(presult_to_string(&parsed), exp);
 
         // Not sure if we should allow this, but this is how it currently works. As long as we
@@ -429,17 +402,17 @@ mod tests {
 
     #[test]
     fn test_unary() {
-        assert_eq!(presult_to_string(&parse_sexpr("-1")), "Ok(Val(Int(-1)))");
+        assert_eq!(presult_strip_span(&parse_sexpr("-1").unwrap()), "Ok(Val(Int(-1)))");
         assert_eq!(
-            presult_to_string(&parse_sexpr("-1.0")),
+            presult_strip_span(&parse_sexpr("-1.0").unwrap()),
             "Ok(Val(Float(-1.0)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("-x")),
+            presult_strip_span(&parse_sexpr("-x").unwrap()),
             r#"Ok(BinOp(Val(Int(0)), Var(VarName::new("x")), NOp(Sub)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("-(1+2)")),
+            presult_strip_span(&parse_sexpr("-(1+2)").unwrap()),
             "Ok(BinOp(Val(Int(0)), BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), NOp(Sub)))"
         );
     }
@@ -448,42 +421,42 @@ mod tests {
     fn test_float_exprs() {
         // Add
         assert_eq!(
-            presult_to_string(&parse_sexpr("0.0")),
+            presult_strip_span(&parse_sexpr("0.0").unwrap()),
             "Ok(Val(Float(0.0)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("-1.0")),
+            presult_strip_span(&parse_sexpr("-1.0").unwrap()),
             "Ok(Val(Float(-1.0)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1.0 +2.0  ")),
+            presult_strip_span(&parse_sexpr("  1.0 +2.0  ").unwrap()),
             "Ok(BinOp(Val(Float(1.0)), Val(Float(2.0)), NOp(Add)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1.0  + 2.0 +3.0")),
+            presult_strip_span(&parse_sexpr(" 1.0  + 2.0 +3.0").unwrap()),
             "Ok(BinOp(BinOp(Val(Float(1.0)), Val(Float(2.0)), NOp(Add)), Val(Float(3.0)), NOp(Add)))"
         );
         // Sub
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1.0 -2.0  ")),
+            presult_strip_span(&parse_sexpr("  1.0 -2.0  ").unwrap()),
             "Ok(BinOp(Val(Float(1.0)), Val(Float(2.0)), NOp(Sub)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1.0  - 2.0 -3.0")),
+            presult_strip_span(&parse_sexpr(" 1.0  - 2.0 -3.0").unwrap()),
             "Ok(BinOp(BinOp(Val(Float(1.0)), Val(Float(2.0)), NOp(Sub)), Val(Float(3.0)), NOp(Sub)))"
         );
         // Mul
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1.0 *2.0  ")),
+            presult_strip_span(&parse_sexpr("  1.0 *2.0  ").unwrap()),
             "Ok(BinOp(Val(Float(1.0)), Val(Float(2.0)), NOp(Mul)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1.0  * 2.0 *3.0")),
+            presult_strip_span(&parse_sexpr(" 1.0  * 2.0 *3.0").unwrap()),
             "Ok(BinOp(BinOp(Val(Float(1.0)), Val(Float(2.0)), NOp(Mul)), Val(Float(3.0)), NOp(Mul)))"
         );
         // Div
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1.0 /2.0  ")),
+            presult_strip_span(&parse_sexpr("  1.0 /2.0  ").unwrap()),
             "Ok(BinOp(Val(Float(1.0)), Val(Float(2.0)), NOp(Div)))"
         );
     }
@@ -492,38 +465,38 @@ mod tests {
     fn test_mixed_float_int_exprs() {
         // Add
         assert_eq!(
-            presult_to_string(&parse_sexpr("0.0 + 2")),
+            presult_strip_span(&parse_sexpr("0.0 + 2").unwrap()),
             "Ok(BinOp(Val(Float(0.0)), Val(Int(2)), NOp(Add)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + 2.0")),
+            presult_strip_span(&parse_sexpr("1 + 2.0").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Float(2.0)), NOp(Add)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1.0 + 2 + 3.0")),
+            presult_strip_span(&parse_sexpr("1.0 + 2 + 3.0").unwrap()),
             "Ok(BinOp(BinOp(Val(Float(1.0)), Val(Int(2)), NOp(Add)), Val(Float(3.0)), NOp(Add)))"
         );
         // Sub
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 - 2.0")),
+            presult_strip_span(&parse_sexpr("1 - 2.0").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Float(2.0)), NOp(Sub)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1.0 - 2 - 3.0")),
+            presult_strip_span(&parse_sexpr("1.0 - 2 - 3.0").unwrap()),
             "Ok(BinOp(BinOp(Val(Float(1.0)), Val(Int(2)), NOp(Sub)), Val(Float(3.0)), NOp(Sub)))"
         );
         // Mul
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 * 2.0")),
+            presult_strip_span(&parse_sexpr("1 * 2.0").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Float(2.0)), NOp(Mul)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1.0 * 2 * 3.0")),
+            presult_strip_span(&parse_sexpr("1.0 * 2 * 3.0").unwrap()),
             "Ok(BinOp(BinOp(Val(Float(1.0)), Val(Int(2)), NOp(Mul)), Val(Float(3.0)), NOp(Mul)))"
         );
         // Div
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 / 2.0")),
+            presult_strip_span(&parse_sexpr("1 / 2.0").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Float(2.0)), NOp(Div)))"
         );
     }
@@ -531,184 +504,184 @@ mod tests {
     #[test]
     fn test_integer_exprs() {
         // Add
-        assert_eq!(presult_to_string(&parse_sexpr("0")), "Ok(Val(Int(0)))");
+        assert_eq!(presult_strip_span(&parse_sexpr("0").unwrap()), "Ok(Val(Int(0)))");
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1 +2  ")),
+            presult_strip_span(&parse_sexpr("  1 +2  ").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1  + 2 +3")),
+            presult_strip_span(&parse_sexpr(" 1  + 2 +3").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), Val(Int(3)), NOp(Add)))"
         );
         // Sub
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1 -2  ")),
+            presult_strip_span(&parse_sexpr("  1 -2  ").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Int(2)), NOp(Sub)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1  - 2 -3")),
+            presult_strip_span(&parse_sexpr(" 1  - 2 -3").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Sub)), Val(Int(3)), NOp(Sub)))"
         );
         // Mul
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1 *2  ")),
+            presult_strip_span(&parse_sexpr("  1 *2  ").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Int(2)), NOp(Mul)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1  * 2 *3")),
+            presult_strip_span(&parse_sexpr(" 1  * 2 *3").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Mul)), Val(Int(3)), NOp(Mul)))"
         );
         // Div
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1 /2  ")),
+            presult_strip_span(&parse_sexpr("  1 /2  ").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Int(2)), NOp(Div)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1  / 2 /3")),
+            presult_strip_span(&parse_sexpr(" 1  / 2 /3").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Div)), Val(Int(3)), NOp(Div)))"
         );
         // Mod
         assert_eq!(
-            presult_to_string(&parse_sexpr("  1 %2  ")),
+            presult_strip_span(&parse_sexpr("  1 %2  ").unwrap()),
             "Ok(BinOp(Val(Int(1)), Val(Int(2)), NOp(Mod)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 1  % 2 %3")),
+            presult_strip_span(&parse_sexpr(" 1  % 2 %3").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Mod)), Val(Int(3)), NOp(Mod)))"
         );
         // Var
         assert_eq!(
-            presult_to_string(&parse_sexpr("  x  ")),
+            presult_strip_span(&parse_sexpr("  x  ").unwrap()),
             r#"Ok(Var(VarName::new("x")))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("  xsss ")),
+            presult_strip_span(&parse_sexpr("  xsss ").unwrap()),
             r#"Ok(Var(VarName::new("xsss")))"#
         );
         // Time index
         assert_eq!(
-            presult_to_string(&parse_sexpr("x [1]")),
+            presult_strip_span(&parse_sexpr("x [1]").unwrap()),
             r#"Ok(SIndex(Var(VarName::new("x")), 1))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("x[1 ]")),
+            presult_strip_span(&parse_sexpr("x[1 ]").unwrap()),
             r#"Ok(SIndex(Var(VarName::new("x")), 1))"#
         );
         // Paren
         assert_eq!(
-            presult_to_string(&parse_sexpr("  (1)  ")),
+            presult_strip_span(&parse_sexpr("  (1)  ").unwrap()),
             "Ok(Val(Int(1)))"
         );
         // Don't care about order of eval; care about what the AST looks like
         assert_eq!(
-            presult_to_string(&parse_sexpr(" 2 + (2 + 3)")),
+            presult_strip_span(&parse_sexpr(" 2 + (2 + 3)").unwrap()),
             "Ok(BinOp(Val(Int(2)), BinOp(Val(Int(2)), Val(Int(3)), NOp(Add)), NOp(Add)))"
         );
         // If then else
         assert_eq!(
-            presult_to_string(&parse_sexpr("if true then 1 else 2")),
+            presult_strip_span(&parse_sexpr("if true then 1 else 2").unwrap()),
             "Ok(If(Val(Bool(true)), Val(Int(1)), Val(Int(2))))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("if true then x+x else y+y")),
+            presult_strip_span(&parse_sexpr("if true then x+x else y+y").unwrap()),
             r#"Ok(If(Val(Bool(true)), BinOp(Var(VarName::new("x")), Var(VarName::new("x")), NOp(Add)), BinOp(Var(VarName::new("y")), Var(VarName::new("y")), NOp(Add))))"#
         );
 
         // ChatGPT generated tests with mixed arithmetic and parentheses iexprs. It only had knowledge of the tests above.
         // Basic mixed addition and multiplication
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + 2 * 3")),
+            presult_strip_span(&parse_sexpr("1 + 2 * 3").unwrap()),
             "Ok(BinOp(Val(Int(1)), BinOp(Val(Int(2)), Val(Int(3)), NOp(Mul)), NOp(Add)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 * 2 + 3")),
+            presult_strip_span(&parse_sexpr("1 * 2 + 3").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Mul)), Val(Int(3)), NOp(Add)))"
         );
         // Mixed addition, subtraction, and multiplication
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + 2 * 3 - 4")),
+            presult_strip_span(&parse_sexpr("1 + 2 * 3 - 4").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), BinOp(Val(Int(2)), Val(Int(3)), NOp(Mul)), NOp(Add)), Val(Int(4)), NOp(Sub)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 * 2 + 3 - 4")),
+            presult_strip_span(&parse_sexpr("1 * 2 + 3 - 4").unwrap()),
             "Ok(BinOp(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Mul)), Val(Int(3)), NOp(Add)), Val(Int(4)), NOp(Sub)))"
         );
         // Mixed addition and division
         assert_eq!(
-            presult_to_string(&parse_sexpr("10 + 20 / 5")),
+            presult_strip_span(&parse_sexpr("10 + 20 / 5").unwrap()),
             "Ok(BinOp(Val(Int(10)), BinOp(Val(Int(20)), Val(Int(5)), NOp(Div)), NOp(Add)))"
         );
         // Nested parentheses with mixed operations
         assert_eq!(
-            presult_to_string(&parse_sexpr("(1 + 2) * (3 - 4)")),
+            presult_strip_span(&parse_sexpr("(1 + 2) * (3 - 4)").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), BinOp(Val(Int(3)), Val(Int(4)), NOp(Sub)), NOp(Mul)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + (2 * (3 + 4))")),
+            presult_strip_span(&parse_sexpr("1 + (2 * (3 + 4))").unwrap()),
             "Ok(BinOp(Val(Int(1)), BinOp(Val(Int(2)), BinOp(Val(Int(3)), Val(Int(4)), NOp(Add)), NOp(Mul)), NOp(Add)))"
         );
         // Complex nested expressions
         assert_eq!(
-            presult_to_string(&parse_sexpr("((1 + 2) * 3) + (4 / (5 - 6))")),
+            presult_strip_span(&parse_sexpr("((1 + 2) * 3) + (4 / (5 - 6))").unwrap()),
             "Ok(BinOp(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), Val(Int(3)), NOp(Mul)), BinOp(Val(Int(4)), BinOp(Val(Int(5)), Val(Int(6)), NOp(Sub)), NOp(Div)), NOp(Add)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("(1 + (2 * (3 - (4 / 5))))")),
+            presult_strip_span(&parse_sexpr("(1 + (2 * (3 - (4 / 5))))").unwrap()),
             "Ok(BinOp(Val(Int(1)), BinOp(Val(Int(2)), BinOp(Val(Int(3)), BinOp(Val(Int(4)), Val(Int(5)), NOp(Div)), NOp(Sub)), NOp(Mul)), NOp(Add)))"
         );
         // More complex expressions with deep nesting
         assert_eq!(
-            presult_to_string(&parse_sexpr("((1 + 2) * (3 + 4))")),
+            presult_strip_span(&parse_sexpr("((1 + 2) * (3 + 4))").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), BinOp(Val(Int(3)), Val(Int(4)), NOp(Add)), NOp(Mul)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("((1 * 2) + (3 * 4)) / 5")),
+            presult_strip_span(&parse_sexpr("((1 * 2) + (3 * 4)) / 5").unwrap()),
             "Ok(BinOp(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Mul)), BinOp(Val(Int(3)), Val(Int(4)), NOp(Mul)), NOp(Add)), Val(Int(5)), NOp(Div)))"
         );
         // Multiple levels of nested expressions
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + (2 * (3 + (4 / (5 - 6))))")),
+            presult_strip_span(&parse_sexpr("1 + (2 * (3 + (4 / (5 - 6))))").unwrap()),
             "Ok(BinOp(Val(Int(1)), BinOp(Val(Int(2)), BinOp(Val(Int(3)), BinOp(Val(Int(4)), BinOp(Val(Int(5)), Val(Int(6)), NOp(Sub)), NOp(Div)), NOp(Add)), NOp(Mul)), NOp(Add)))"
         );
 
         // ChatGPT generated tests with mixed iexprs. It only had knowledge of the tests above.
         // Mixing addition, subtraction, and variables
         assert_eq!(
-            presult_to_string(&parse_sexpr("x + 2 - y")),
+            presult_strip_span(&parse_sexpr("x + 2 - y").unwrap()),
             r#"Ok(BinOp(BinOp(Var(VarName::new("x")), Val(Int(2)), NOp(Add)), Var(VarName::new("y")), NOp(Sub)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("(x + y) * 3")),
+            presult_strip_span(&parse_sexpr("(x + y) * 3").unwrap()),
             r#"Ok(BinOp(BinOp(Var(VarName::new("x")), Var(VarName::new("y")), NOp(Add)), Val(Int(3)), NOp(Mul)))"#
         );
         // Nested arithmetic with variables and parentheses
         assert_eq!(
-            presult_to_string(&parse_sexpr("(a + b) / (c - d)")),
+            presult_strip_span(&parse_sexpr("(a + b) / (c - d)").unwrap()),
             r#"Ok(BinOp(BinOp(Var(VarName::new("a")), Var(VarName::new("b")), NOp(Add)), BinOp(Var(VarName::new("c")), Var(VarName::new("d")), NOp(Sub)), NOp(Div)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("x * (y + 3) - z / 2")),
+            presult_strip_span(&parse_sexpr("x * (y + 3) - z / 2").unwrap()),
             r#"Ok(BinOp(BinOp(Var(VarName::new("x")), BinOp(Var(VarName::new("y")), Val(Int(3)), NOp(Add)), NOp(Mul)), BinOp(Var(VarName::new("z")), Val(Int(2)), NOp(Div)), NOp(Sub)))"#
         );
         // If-then-else with mixed arithmetic
         assert_eq!(
-            presult_to_string(&parse_sexpr("if true then 1 + 2 else 3 * 4")),
+            presult_strip_span(&parse_sexpr("if true then 1 + 2 else 3 * 4").unwrap()),
             "Ok(If(Val(Bool(true)), BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), BinOp(Val(Int(3)), Val(Int(4)), NOp(Mul))))"
         );
         // Time index in arithmetic expression
         assert_eq!(
-            presult_to_string(&parse_sexpr("x[0] + y[1]")),
+            presult_strip_span(&parse_sexpr("x[0] + y[1]").unwrap()),
             r#"Ok(BinOp(SIndex(Var(VarName::new("x")), 0), SIndex(Var(VarName::new("y")), 1), NOp(Add)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("x[1] * (y + 3)")),
+            presult_strip_span(&parse_sexpr("x[1] * (y + 3)").unwrap()),
             r#"Ok(BinOp(SIndex(Var(VarName::new("x")), 1), BinOp(Var(VarName::new("y")), Val(Int(3)), NOp(Add)), NOp(Mul)))"#
         );
         // Case to test precedence of if-then-else with arithmetic
         // Most languages implement this as "if a then b else (c + d)" and so should we.
         // Programmers can write "(if a then b else c) + d" if they want the other behavior.
         assert_eq!(
-            presult_to_string(&parse_sexpr("if a then b else c + d")),
+            presult_strip_span(&parse_sexpr("if a then b else c + d").unwrap()),
             r#"Ok(If(Var(VarName::new("a")), Var(VarName::new("b")), BinOp(Var(VarName::new("c")), Var(VarName::new("d")), NOp(Add))))"#
         );
     }
@@ -745,19 +718,19 @@ mod tests {
     fn test_assignment_decl() {
         assert_eq!(
             presult_to_string(&parse_stopdecl("x = 0")),
-            r#"Ok(Assignment(VarName::new("x"), Val(Int(0))))"#
+            r#"Ok(Assignment(VarName::new("x"), Spanned { node: Val(Int(0)), span: Span { start: 4, end: 5 } }, Span { start: 0, end: 5 }))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl(r#"x = "hello""#)),
-            r#"Ok(Assignment(VarName::new("x"), Val(Str("hello"))))"#
+            r#"Ok(Assignment(VarName::new("x"), Spanned { node: Val(Str("hello")), span: Span { start: 4, end: 11 } }, Span { start: 0, end: 11 }))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl("x = true")),
-            r#"Ok(Assignment(VarName::new("x"), Val(Bool(true))))"#
+            r#"Ok(Assignment(VarName::new("x"), Spanned { node: Val(Bool(true)), span: Span { start: 4, end: 8 } }, Span { start: 0, end: 8 }))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl("x = false")),
-            r#"Ok(Assignment(VarName::new("x"), Val(Bool(false))))"#
+            r#"Ok(Assignment(VarName::new("x"), Spanned { node: Val(Bool(false)), span: Span { start: 4, end: 9 } }, Span { start: 0, end: 9 }))"#
         );
     }
 
@@ -788,11 +761,11 @@ mod tests {
     #[test]
     fn test_parse_boolean_expressions() {
         assert_eq!(
-            presult_to_string(&parse_sexpr("true && false")),
+            presult_strip_span(&parse_sexpr("true && false").unwrap()),
             "Ok(BinOp(Val(Bool(true)), Val(Bool(false)), BOp(And)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("true || false")),
+            presult_strip_span(&parse_sexpr("true || false").unwrap()),
             "Ok(BinOp(Val(Bool(true)), Val(Bool(false)), BOp(Or)))"
         );
     }
@@ -801,11 +774,11 @@ mod tests {
     fn test_parse_mixed_boolean_and_arithmetic() {
         // Expressions do not make sense but parser should allow it
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + 2 && 3")),
+            presult_strip_span(&parse_sexpr("1 + 2 && 3").unwrap()),
             "Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), Val(Int(3)), BOp(And)))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("true || 1 * 2")),
+            presult_strip_span(&parse_sexpr("true || 1 * 2").unwrap()),
             "Ok(BinOp(Val(Bool(true)), BinOp(Val(Int(1)), Val(Int(2)), NOp(Mul)), BOp(Or)))"
         );
     }
@@ -813,15 +786,15 @@ mod tests {
     #[test]
     fn test_parse_string_concatenation() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#""foo" ++ "bar""#)),
+            presult_strip_span(&parse_sexpr(r#""foo" ++ "bar""#).unwrap()),
             r#"Ok(BinOp(Val(Str("foo")), Val(Str("bar")), SOp(Concat)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#""hello" ++ " " ++ "world""#)),
+            presult_strip_span(&parse_sexpr(r#""hello" ++ " " ++ "world""#).unwrap()),
             r#"Ok(BinOp(BinOp(Val(Str("hello")), Val(Str(" ")), SOp(Concat)), Val(Str("world")), SOp(Concat)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#""a" ++ "b" ++ "c""#)),
+            presult_strip_span(&parse_sexpr(r#""a" ++ "b" ++ "c""#).unwrap()),
             r#"Ok(BinOp(BinOp(Val(Str("a")), Val(Str("b")), SOp(Concat)), Val(Str("c")), SOp(Concat)))"#
         );
     }
@@ -829,7 +802,7 @@ mod tests {
     #[test]
     fn test_parse_defer() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"defer(x)"#)),
+            presult_strip_span(&parse_sexpr(r#"defer(x)"#).unwrap()),
             r#"Ok(Defer(Var(VarName::new("x")), Unascribed, []))"#
         )
     }
@@ -837,7 +810,7 @@ mod tests {
     #[test]
     fn test_parse_update() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"update(x, y)"#)),
+            presult_strip_span(&parse_sexpr(r#"update(x, y)"#).unwrap()),
             r#"Ok(Update(Var(VarName::new("x")), Var(VarName::new("y"))))"#
         )
     }
@@ -845,7 +818,7 @@ mod tests {
     #[test]
     fn test_parse_default() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"default(x, 0)"#)),
+            presult_strip_span(&parse_sexpr(r#"default(x, 0)"#).unwrap()),
             r#"Ok(Default(Var(VarName::new("x")), Val(Int(0))))"#
         )
     }
@@ -853,7 +826,7 @@ mod tests {
     #[test]
     fn test_parse_default_parse_sexpr() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"default(x, y)"#)),
+            presult_strip_span(&parse_sexpr(r#"default(x, y)"#).unwrap()),
             r#"Ok(Default(Var(VarName::new("x")), Var(VarName::new("y"))))"#
         )
     }
@@ -861,7 +834,7 @@ mod tests {
     #[test]
     fn test_when() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"when(x)"#)),
+            presult_strip_span(&parse_sexpr(r#"when(x)"#).unwrap()),
             r#"Ok(When(Var(VarName::new("x"))))"#
         )
     }
@@ -869,7 +842,7 @@ mod tests {
     #[test]
     fn test_is_defined() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"is_defined(x)"#)),
+            presult_strip_span(&parse_sexpr(r#"is_defined(x)"#).unwrap()),
             r#"Ok(IsDefined(Var(VarName::new("x"))))"#
         )
     }
@@ -877,58 +850,58 @@ mod tests {
     #[test]
     fn test_parse_list() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List()"#)),
+            presult_strip_span(&parse_sexpr(r#"List()"#).unwrap()),
             r#"Ok(List([]))"#,
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List () "#)),
+            presult_strip_span(&parse_sexpr(r#"List () "#).unwrap()),
             r#"Ok(List([]))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List(1,2)"#)),
+            presult_strip_span(&parse_sexpr(r#"List(1,2)"#).unwrap()),
             r#"Ok(List([Val(Int(1)), Val(Int(2))]))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List(1+2,2*5)"#)),
+            presult_strip_span(&parse_sexpr(r#"List(1+2,2*5)"#).unwrap()),
             r#"Ok(List([BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), BinOp(Val(Int(2)), Val(Int(5)), NOp(Mul))]))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List("hello","world")"#)),
+            presult_strip_span(&parse_sexpr(r#"List("hello","world")"#).unwrap()),
             r#"Ok(List([Val(Str("hello")), Val(Str("world"))]))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List(true || false, true && false)"#)),
+            presult_strip_span(&parse_sexpr(r#"List(true || false, true && false)"#).unwrap()),
             r#"Ok(List([BinOp(Val(Bool(true)), Val(Bool(false)), BOp(Or)), BinOp(Val(Bool(true)), Val(Bool(false)), BOp(And))]))"#
         );
         // Can mix expressions - not that it is necessarily a good idea
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List(1,"hello")"#)),
+            presult_strip_span(&parse_sexpr(r#"List(1,"hello")"#).unwrap()),
             r#"Ok(List([Val(Int(1)), Val(Str("hello"))]))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl("y = List()")),
-            r#"Ok(Assignment(VarName::new("y"), List([])))"#
+            r#"Ok(Assignment(VarName::new("y"), Spanned { node: List([]), span: Span { start: 4, end: 10 } }, Span { start: 0, end: 10 }))"#
         )
     }
 
     #[test]
     fn test_parse_lindex() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.get(List(1, 2), 42)"#)),
+            presult_strip_span(&parse_sexpr(r#"List.get(List(1, 2), 42)"#).unwrap()),
             r#"Ok(LIndex(List([Val(Int(1)), Val(Int(2))]), Val(Int(42))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.get(x, 42)"#)),
+            presult_strip_span(&parse_sexpr(r#"List.get(x, 42)"#).unwrap()),
             r#"Ok(LIndex(Var(VarName::new("x")), Val(Int(42))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.get(x, 1+2)"#)),
+            presult_strip_span(&parse_sexpr(r#"List.get(x, 1+2)"#).unwrap()),
             r#"Ok(LIndex(Var(VarName::new("x")), BinOp(Val(Int(1)), Val(Int(2)), NOp(Add))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(
+            presult_strip_span(&parse_sexpr(
                 r#"List.get(List.get(List(List(1, 2), List(3, 4)), 0), 1)"#
-            )),
+            ).unwrap()),
             r#"Ok(LIndex(LIndex(List([List([Val(Int(1)), Val(Int(2))]), List([Val(Int(3)), Val(Int(4))])]), Val(Int(0))), Val(Int(1))))"#
         );
     }
@@ -936,11 +909,11 @@ mod tests {
     #[test]
     fn test_parse_lconcat() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.concat(List(1, 2), List(3, 4))"#)),
+            presult_strip_span(&parse_sexpr(r#"List.concat(List(1, 2), List(3, 4))"#).unwrap()),
             r#"Ok(LConcat(List([Val(Int(1)), Val(Int(2))]), List([Val(Int(3)), Val(Int(4))])))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.concat(List(), List())"#)),
+            presult_strip_span(&parse_sexpr(r#"List.concat(List(), List())"#).unwrap()),
             r#"Ok(LConcat(List([]), List([])))"#
         );
     }
@@ -948,15 +921,15 @@ mod tests {
     #[test]
     fn test_parse_lappend() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.append(List(1, 2), 3)"#)),
+            presult_strip_span(&parse_sexpr(r#"List.append(List(1, 2), 3)"#).unwrap()),
             r#"Ok(LAppend(List([Val(Int(1)), Val(Int(2))]), Val(Int(3))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.append(List(), 3)"#)),
+            presult_strip_span(&parse_sexpr(r#"List.append(List(), 3)"#).unwrap()),
             r#"Ok(LAppend(List([]), Val(Int(3))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.append(List(), x)"#)),
+            presult_strip_span(&parse_sexpr(r#"List.append(List(), x)"#).unwrap()),
             r#"Ok(LAppend(List([]), Var(VarName::new("x"))))"#
         );
     }
@@ -964,12 +937,12 @@ mod tests {
     #[test]
     fn test_parse_lhead() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.head(List(1, 2))"#)),
+            presult_strip_span(&parse_sexpr(r#"List.head(List(1, 2))"#).unwrap()),
             r#"Ok(LHead(List([Val(Int(1)), Val(Int(2))])))"#
         );
         // Ok for parser but will result in runtime error:
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.head(List())"#)),
+            presult_strip_span(&parse_sexpr(r#"List.head(List())"#).unwrap()),
             r#"Ok(LHead(List([])))"#
         );
     }
@@ -977,12 +950,12 @@ mod tests {
     #[test]
     fn test_parse_ltail() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.tail(List(1, 2))"#)),
+            presult_strip_span(&parse_sexpr(r#"List.tail(List(1, 2))"#).unwrap()),
             r#"Ok(LTail(List([Val(Int(1)), Val(Int(2))])))"#
         );
         // Ok for parser but will result in runtime error:
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.tail(List())"#)),
+            presult_strip_span(&parse_sexpr(r#"List.tail(List())"#).unwrap()),
             r#"Ok(LTail(List([])))"#
         );
     }
@@ -990,11 +963,11 @@ mod tests {
     #[test]
     fn test_parse_llen() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.len(List(1, 2))"#)),
+            presult_strip_span(&parse_sexpr(r#"List.len(List(1, 2))"#).unwrap()),
             r#"Ok(LLen(List([Val(Int(1)), Val(Int(2))])))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"List.len(List())"#)),
+            presult_strip_span(&parse_sexpr(r#"List.len(List())"#).unwrap()),
             r#"Ok(LLen(List([])))"#
         );
     }
@@ -1002,126 +975,126 @@ mod tests {
     #[test]
     fn test_parse_map() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map()"#)),
+            presult_strip_span(&parse_sexpr(r#"Map()"#).unwrap()),
             r#"Ok(Map({}))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map("x": 1, "y": 2)"#)),
-            r#"Ok(Map({"x": Val(Int(1)), "y": Val(Int(2))}))"#
+            presult_strip_span(&parse_sexpr(r#"Map("x": 1, "y": 2)"#).unwrap()),
+            r#"Ok(Map({x: Val(Int(1)), y: Val(Int(2))}))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map("x": 1+2,"y": 2*5)"#)),
-            r#"Ok(Map({"x": BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), "y": BinOp(Val(Int(2)), Val(Int(5)), NOp(Mul))}))"#
+            presult_strip_span(&parse_sexpr(r#"Map("x": 1+2,"y": 2*5)"#).unwrap()),
+            r#"Ok(Map({x: BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), y: BinOp(Val(Int(2)), Val(Int(5)), NOp(Mul))}))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map("x": "hello", "y": "world")"#)),
-            r#"Ok(Map({"x": Val(Str("hello")), "y": Val(Str("world"))}))"#
+            presult_strip_span(&parse_sexpr(r#"Map("x": "hello", "y": "world")"#).unwrap()),
+            r#"Ok(Map({x: Val(Str("hello")), y: Val(Str("world"))}))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(
+            presult_strip_span(&parse_sexpr(
                 r#"Map("xxxx": true || false, "yyyy": true && false)"#
-            )),
-            r#"Ok(Map({"xxxx": BinOp(Val(Bool(true)), Val(Bool(false)), BOp(Or)), "yyyy": BinOp(Val(Bool(true)), Val(Bool(false)), BOp(And))}))"#
+            ).unwrap()),
+            r#"Ok(Map({xxxx: BinOp(Val(Bool(true)), Val(Bool(false)), BOp(Or)), yyyy: BinOp(Val(Bool(true)), Val(Bool(false)), BOp(And))}))"#
         );
         // Can mix expressions - not that it is necessarily a good idea
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map( "x": 1, "y": "hello" )"#)),
-            r#"Ok(Map({"x": Val(Int(1)), "y": Val(Str("hello"))}))"#
+            presult_strip_span(&parse_sexpr(r#"Map( "x": 1, "y": "hello" )"#).unwrap()),
+            r#"Ok(Map({x: Val(Int(1)), y: Val(Str("hello"))}))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl("y = Map()")),
-            r#"Ok(Assignment(VarName::new("y"), Map({})))"#
+            r#"Ok(Assignment(VarName::new("y"), Spanned { node: Map({}), span: Span { start: 4, end: 9 } }, Span { start: 0, end: 9 }))"#
         )
     }
 
     #[test]
     fn test_parse_mget() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.get(Map("x": 2, "y": true), "x")"#)),
-            r#"Ok(MGet(Map({"x": Val(Int(2)), "y": Val(Bool(true))}), "x"))"#
+            presult_strip_span(&parse_sexpr(r#"Map.get(Map("x": 2, "y": true), "x")"#).unwrap()),
+            r#"Ok(MGet(Map({x: Val(Int(2)), y: Val(Bool(true))}), x))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.get(x, "key")"#)),
-            r#"Ok(MGet(Var(VarName::new("x")), "key"))"#
+            presult_strip_span(&parse_sexpr(r#"Map.get(x, "key")"#).unwrap()),
+            r#"Ok(MGet(Var(VarName::new("x")), key))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.get(x, "")"#)),
-            r#"Ok(MGet(Var(VarName::new("x")), ""))"#
+            presult_strip_span(&parse_sexpr(r#"Map.get(x, "")"#).unwrap()),
+            r#"Ok(MGet(Var(VarName::new("x")), ))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(
+            presult_strip_span(&parse_sexpr(
                 r#"Map.get(Map.get(Map.get(Map("three": Map("two": Map("one": 42))), "three"), "two"), "one")"#
-            )),
-            r#"Ok(MGet(MGet(MGet(Map({"three": Map({"two": Map({"one": Val(Int(42))})})}), "three"), "two"), "one"))"#
+            ).unwrap()),
+            r#"Ok(MGet(MGet(MGet(Map({three: Map({two: Map({one: Val(Int(42))})})}), three), two), one))"#
         );
     }
 
     #[test]
     fn test_parse_mremove() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.remove(Map("x": 2, "y": true), "x")"#)),
-            r#"Ok(MRemove(Map({"x": Val(Int(2)), "y": Val(Bool(true))}), "x"))"#
+            presult_strip_span(&parse_sexpr(r#"Map.remove(Map("x": 2, "y": true), "x")"#).unwrap()),
+            r#"Ok(MRemove(Map({x: Val(Int(2)), y: Val(Bool(true))}), x))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.remove(x, "key")"#)),
-            r#"Ok(MRemove(Var(VarName::new("x")), "key"))"#
+            presult_strip_span(&parse_sexpr(r#"Map.remove(x, "key")"#).unwrap()),
+            r#"Ok(MRemove(Var(VarName::new("x")), key))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.remove(x, "")"#)),
-            r#"Ok(MRemove(Var(VarName::new("x")), ""))"#
+            presult_strip_span(&parse_sexpr(r#"Map.remove(x, "")"#).unwrap()),
+            r#"Ok(MRemove(Var(VarName::new("x")), ))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(
+            presult_strip_span(&parse_sexpr(
                 r#"Map.remove(Map.remove(Map.remove(Map("three": Map("two": Map("one": 42))), "three"), "two"), "one")"#
-            )),
-            r#"Ok(MRemove(MRemove(MRemove(Map({"three": Map({"two": Map({"one": Val(Int(42))})})}), "three"), "two"), "one"))"#
+            ).unwrap()),
+            r#"Ok(MRemove(MRemove(MRemove(Map({three: Map({two: Map({one: Val(Int(42))})})}), three), two), one))"#
         );
     }
 
     #[test]
     fn test_parse_mhas_key() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.has_key(Map("x": 2, "y": true), "x")"#)),
-            r#"Ok(MHasKey(Map({"x": Val(Int(2)), "y": Val(Bool(true))}), "x"))"#
+            presult_strip_span(&parse_sexpr(r#"Map.has_key(Map("x": 2, "y": true), "x")"#).unwrap()),
+            r#"Ok(MHasKey(Map({x: Val(Int(2)), y: Val(Bool(true))}), x))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.has_key(x, "key")"#)),
-            r#"Ok(MHasKey(Var(VarName::new("x")), "key"))"#
+            presult_strip_span(&parse_sexpr(r#"Map.has_key(x, "key")"#).unwrap()),
+            r#"Ok(MHasKey(Var(VarName::new("x")), key))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.has_key(x, "")"#)),
-            r#"Ok(MHasKey(Var(VarName::new("x")), ""))"#
+            presult_strip_span(&parse_sexpr(r#"Map.has_key(x, "")"#).unwrap()),
+            r#"Ok(MHasKey(Var(VarName::new("x")), ))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(
+            presult_strip_span(&parse_sexpr(
                 r#"Map.has_key(Map.has_key(Map.has_key(Map("three": Map("two": Map("one": 42))), "three"), "two"), "one")"#
-            )),
-            r#"Ok(MHasKey(MHasKey(MHasKey(Map({"three": Map({"two": Map({"one": Val(Int(42))})})}), "three"), "two"), "one"))"#
+            ).unwrap()),
+            r#"Ok(MHasKey(MHasKey(MHasKey(Map({three: Map({two: Map({one: Val(Int(42))})})}), three), two), one))"#
         );
     }
 
     #[test]
     fn test_parse_minsert() {
         assert_eq!(
-            presult_to_string(&parse_sexpr(
+            presult_strip_span(&parse_sexpr(
                 r#"Map.insert(Map("x": 2, "y": true), "z", 42)"#
-            )),
-            r#"Ok(MInsert(Map({"x": Val(Int(2)), "y": Val(Bool(true))}), "z", Val(Int(42))))"#
+            ).unwrap()),
+            r#"Ok(MInsert(Map({x: Val(Int(2)), y: Val(Bool(true))}), z, Val(Int(42))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.insert(x, "key", true)"#)),
-            r#"Ok(MInsert(Var(VarName::new("x")), "key", Val(Bool(true))))"#
+            presult_strip_span(&parse_sexpr(r#"Map.insert(x, "key", true)"#).unwrap()),
+            r#"Ok(MInsert(Var(VarName::new("x")), key, Val(Bool(true))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr(r#"Map.insert(x, "", 1)"#)),
-            r#"Ok(MInsert(Var(VarName::new("x")), "", Val(Int(1))))"#
+            presult_strip_span(&parse_sexpr(r#"Map.insert(x, "", 1)"#).unwrap()),
+            r#"Ok(MInsert(Var(VarName::new("x")), , Val(Int(1))))"#
         );
     }
 
     #[test]
     fn test_dangling_else() {
         assert_eq!(
-            presult_to_string(&parse_sexpr("if a then b else c + d")),
+            presult_strip_span(&parse_sexpr("if a then b else c + d").unwrap()),
             r#"Ok(If(Var(VarName::new("a")), Var(VarName::new("b")), BinOp(Var(VarName::new("c")), Var(VarName::new("d")), NOp(Add))))"#
         )
     }
@@ -1129,15 +1102,15 @@ mod tests {
     #[test]
     fn test_trig() {
         assert_eq!(
-            presult_to_string(&parse_sexpr("sin(1.0)")),
+            presult_strip_span(&parse_sexpr("sin(1.0)").unwrap()),
             r#"Ok(Sin(Val(Float(1.0))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("cos(0)")),
+            presult_strip_span(&parse_sexpr("cos(0)").unwrap()),
             r#"Ok(Cos(Val(Int(0))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("tan(3.14)")),
+            presult_strip_span(&parse_sexpr("tan(3.14)").unwrap()),
             r#"Ok(Tan(Val(Float(3.14))))"#
         );
     }
@@ -1145,11 +1118,11 @@ mod tests {
     #[test]
     fn test_abs() {
         assert_eq!(
-            presult_to_string(&parse_sexpr("abs(-5)")),
+            presult_strip_span(&parse_sexpr("abs(-5)").unwrap()),
             r#"Ok(Abs(Val(Int(-5))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("abs(3.14)")),
+            presult_strip_span(&parse_sexpr("abs(3.14)").unwrap()),
             r#"Ok(Abs(Val(Float(3.14))))"#
         );
     }
@@ -1157,37 +1130,37 @@ mod tests {
     #[test]
     fn test_comparison() {
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 < 2")),
+            presult_strip_span(&parse_sexpr("1 < 2").unwrap()),
             r#"Ok(BinOp(Val(Int(1)), Val(Int(2)), COp(Lt)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 > 2")),
+            presult_strip_span(&parse_sexpr("1 > 2").unwrap()),
             r#"Ok(BinOp(Val(Int(1)), Val(Int(2)), COp(Gt)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("3.14 >= 2.71")),
+            presult_strip_span(&parse_sexpr("3.14 >= 2.71").unwrap()),
             r#"Ok(BinOp(Val(Float(3.14)), Val(Float(2.71)), COp(Ge)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("3.14 <= 2.71")),
+            presult_strip_span(&parse_sexpr("3.14 <= 2.71").unwrap()),
             r#"Ok(BinOp(Val(Float(3.14)), Val(Float(2.71)), COp(Le)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("x == y")),
+            presult_strip_span(&parse_sexpr("x == y").unwrap()),
             r#"Ok(BinOp(Var(VarName::new("x")), Var(VarName::new("y")), COp(Eq)))"#
         );
         // Test precedence:
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + 2 > 3")),
+            presult_strip_span(&parse_sexpr("1 + 2 > 3").unwrap()),
             r#"Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), Val(Int(3)), COp(Gt)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 + 2 == 3 * 4")),
+            presult_strip_span(&parse_sexpr("1 + 2 == 3 * 4").unwrap()),
             r#"Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), BinOp(Val(Int(3)), Val(Int(4)), NOp(Mul)), COp(Eq)))"#
         );
         // Equality has lower precedence than other comparisons
         assert_eq!(
-            presult_to_string(&parse_sexpr("1 < 2 == 3 < 4")),
+            presult_strip_span(&parse_sexpr("1 < 2 == 3 < 4").unwrap()),
             r#"Ok(BinOp(BinOp(Val(Int(1)), Val(Int(2)), COp(Lt)), BinOp(Val(Int(3)), Val(Int(4)), COp(Lt)), COp(Eq)))"#
         );
     }
@@ -1195,36 +1168,36 @@ mod tests {
     #[test]
     fn test_not() {
         assert_eq!(
-            presult_to_string(&parse_sexpr("!true")),
+            presult_strip_span(&parse_sexpr("!true").unwrap()),
             r#"Ok(Not(Val(Bool(true))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("!false")),
+            presult_strip_span(&parse_sexpr("!false").unwrap()),
             r#"Ok(Not(Val(Bool(false))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("! (1 + 2 > 3)")),
+            presult_strip_span(&parse_sexpr("! (1 + 2 > 3)").unwrap()),
             r#"Ok(Not(BinOp(BinOp(Val(Int(1)), Val(Int(2)), NOp(Add)), Val(Int(3)), COp(Gt))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("!!false")),
+            presult_strip_span(&parse_sexpr("!!false").unwrap()),
             r#"Ok(Not(Not(Val(Bool(false)))))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("!(if a then b else c)")),
+            presult_strip_span(&parse_sexpr("!(if a then b else c)").unwrap()),
             r#"Ok(Not(If(Var(VarName::new("a")), Var(VarName::new("b")), Var(VarName::new("c")))))"#
         );
         // Another edge case:
         assert_eq!(
-            presult_to_string(&parse_sexpr("!1 + 2")),
+            presult_strip_span(&parse_sexpr("!1 + 2").unwrap()),
             r#"Ok(BinOp(Not(Val(Int(1))), Val(Int(2)), NOp(Add)))"#
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("if !true then 1 else 2")),
+            presult_strip_span(&parse_sexpr("if !true then 1 else 2").unwrap()),
             "Ok(If(Not(Val(Bool(true))), Val(Int(1)), Val(Int(2))))"
         );
         assert_eq!(
-            presult_to_string(&parse_sexpr("dynamic(!s)")),
+            presult_strip_span(&parse_sexpr("dynamic(!s)").unwrap()),
             r#"Ok(Dynamic(Not(Var(VarName::new("s"))), Unascribed))"#
         );
     }
@@ -1233,19 +1206,19 @@ mod tests {
     fn test_capital_varname() {
         assert_eq!(
             presult_to_string(&parse_stopdecl("in G")),
-            r#"Ok(Input(VarName::new("G"), None))"#
+            r#"Ok(Input(VarName::new("G"), None, Span { start: 0, end: 4 }))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl("out F")),
-            r#"Ok(Output(VarName::new("F"), None))"#
+            r#"Ok(Output(VarName::new("F"), None, Span { start: 0, end: 5 }))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl("in GANDALF")),
-            r#"Ok(Input(VarName::new("GANDALF"), None))"#
+            r#"Ok(Input(VarName::new("GANDALF"), None, Span { start: 0, end: 10 }))"#
         );
         assert_eq!(
             presult_to_string(&parse_stopdecl("out FRODO")),
-            r#"Ok(Output(VarName::new("FRODO"), None))"#
+            r#"Ok(Output(VarName::new("FRODO"), None, Span { start: 0, end: 9 }))"#
         );
     }
 
