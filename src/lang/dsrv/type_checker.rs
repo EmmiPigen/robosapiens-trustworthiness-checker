@@ -775,7 +775,7 @@ impl TypeCheckableHelper<SExprTE> for (SpannedExpr, StreamTypeAscription) {
 
 // Type check an expression
 impl TypeCheckableHelper<SExprTE> for SpannedExpr {
-    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, span: Span) -> Result<SExprTE, ()> {
+    fn type_check_raw(&self, ctx: &mut TypeInfo, errs: &mut SemanticErrors, _span: Span) -> Result<SExprTE, ()> {
         let span = self.span; // Use the specific span of this AST node
         match &self.node {
             SExpr::Val(sdata) => sdata.type_check_raw(ctx, errs, span),
