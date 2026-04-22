@@ -89,11 +89,11 @@ impl<T: Debug> Display for PartialStreamValue<T> {
 impl Display for SExprTE {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SExprTE::Int(e) => write!(f, "{}: Int", e),
-            SExprTE::Float(e) => write!(f, "{}: Float", e),
-            SExprTE::Str(e) => write!(f, "{}: String", e),
-            SExprTE::Bool(e) => write!(f, "{}: Boolean", e),
-            SExprTE::Unit(e) => write!(f, "{}: Unit", e),
+            SExprTE::Int(e) => write!(f, "{}", e),
+            SExprTE::Float(e) => write!(f, "{}", e),
+            SExprTE::Str(e) => write!(f, "{}", e),
+            SExprTE::Bool(e) => write!(f, "{}", e),
+            SExprTE::Unit(e) => write!(f, "{}", e),
         }
     }
 }
