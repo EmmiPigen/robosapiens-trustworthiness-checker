@@ -94,6 +94,19 @@ pub enum CompBinOp {
     Gt,
 }
 
+impl Display for CompBinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use CompBinOp::*;
+        match self {
+            Eq => write!(f, "=="),
+            Le => write!(f, "<="),
+            Ge => write!(f, ">="),
+            Lt => write!(f, "<"),
+            Gt => write!(f, ">"),
+        }
+    }
+}
+
 // Stream BinOp
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum SBinOp {
@@ -103,18 +116,16 @@ pub enum SBinOp {
     COp(CompBinOp),
 }
 
-impl Display for SBinOp{
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-      match self {
-          SBinOp::NOp(op) => write!(f, "{:?}", op),
-          SBinOp::BOp(op) => write!(f, "{:?}", op),
-          SBinOp::SOp(op) => write!(f, "{:?}", op),
-          SBinOp::COp(op) => write!(f, "{:?}", op),
-      }
-  }
+impl Display for SBinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SBinOp::NOp(op) => write!(f, "Numerical {:?}", op),
+            SBinOp::BOp(op) => write!(f, "Boolean {:?}", op),
+            SBinOp::SOp(op) => write!(f, "String {:?}", op),
+            SBinOp::COp(op) => write!(f, "Comparison {}", op),
+        }
+    }
 }
-
-
 
 // Helper function to specify binary operations from a string
 impl From<&str> for SBinOp {
@@ -162,7 +173,6 @@ impl Into<String> for VarOrNodeName {
 }
 
 pub type SpannedExpr = Spanned<SExpr>;
-
 
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
 pub enum SExpr {
@@ -765,7 +775,6 @@ pub mod generation {
         })
     }
 
-  
     pub fn arb_boolean_sexpr(vars: Vec<VarName>) -> impl Strategy<Value = SExpr> {
         let leaf = prop_oneof![
             any::<bool>().prop_map(|x| SExpr::Val(x)),
