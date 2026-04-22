@@ -7,7 +7,7 @@ use winnow::{
     token::{literal, take_until},
 };
 
-use crate::{DsrvSpecification, Specification, Value};
+use crate::{Specification, Value};
 use std::{collections::BTreeMap, fmt::Debug};
 use winnow::Parser;
 pub use winnow::ascii::alphanumeric1 as ident;
