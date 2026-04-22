@@ -89,11 +89,11 @@ impl<T: Debug> Display for PartialStreamValue<T> {
 impl Display for SExprTE {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SExprTE::Int(e) => write!(f, "{}", e),
-            SExprTE::Float(e) => write!(f, "{}", e),
-            SExprTE::Str(e) => write!(f, "{}", e),
-            SExprTE::Bool(e) => write!(f, "{}", e),
-            SExprTE::Unit(e) => write!(f, "{}", e),
+            SExprTE::Int(e) => write!(f, "{}: Int", e),
+            SExprTE::Float(e) => write!(f, "{}: Float", e),
+            SExprTE::Str(e) => write!(f, "{}: String", e),
+            SExprTE::Bool(e) => write!(f, "{}: Boolean", e),
+            SExprTE::Unit(e) => write!(f, "{}: Unit", e),
         }
     }
 }
@@ -818,7 +818,7 @@ impl TypeCheckableHelper<SExprTE> for (SBinOp, &SpannedExpr, &SpannedExpr) {
             // Any other case where sub-expressions are Ok, but `op` is not supported
             (_, Ok(ste1), Ok(ste2)) => {
                 errs.push(SemanticError::TypeError(format!(
-                    "Cannot apply binary function {:?} to expressions of type {:?} and {:?}",
+                    "Cannot apply binary function {:?} to expressions of type {} and {}",
                     op, ste1, ste2
                 ), span));
                 Err(())
@@ -856,7 +856,7 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr) {
                     )),
                     (stenum1, stenum2) => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Cannot create default-expression with two different types: {:?} and {:?}",
+                            "Cannot create default-expression with two different types: {} and {}",
                             stenum1, stenum2
                         ), span));
                         Err(())
@@ -903,7 +903,7 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr, &SpannedExpr)
                     ))),
                     (stenum1, stenum2) => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Cannot create if-expression with two different types: {:?} and {:?}",
+                            "Cannot create if-expression with two different types: {} and {}",
                             stenum1, stenum2
                         ), span));
                         Err(())
@@ -942,7 +942,7 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, u64) {
                 se => {
                     errs.push(SemanticError::TypeError(
                         format!(
-                            "Mismatched type in Stream Index expression, expression and default does not match: {:?}",
+                            "Mismatched type in Stream Index expression, expression and default does not match: {}",
                             se
                         ),
                         span
@@ -970,7 +970,7 @@ impl TypeCheckableHelper<SExprTE> for VarName {
             },
             None => {
                 errs.push(SemanticError::UndeclaredVariable(format!(
-                    "Usage of undeclared variable: {:?}",
+                    "Usage of undeclared variable: {}",
                     self
                 ), span));
                 Err(())
@@ -992,7 +992,7 @@ impl TypeCheckableHelper<SExprTE> for (SpannedExpr, StreamTypeAscription) {
                     Ok(expr_te)
                 } else {
                     errs.push(SemanticError::TypeError(format!(
-                        "Type mismatch: expected {:?}, got {:?}",
+                        "Type mismatch: expected {}, got {}",
                         expected_ty, actual_ty
                     ), span));
                     Err(())
@@ -1035,7 +1035,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Str(e_str) => e_str,
                     ty => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Expected Dynamic to be applied to a Str, got {:?}",
+                            "Expected Dynamic to be applied to a Str, got {}",
                             ty
                         ), span));
                         return Err(());
@@ -1074,7 +1074,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Str(e_str) => e_str,
                     ty => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Expected RestrictedDynamic to be applied to a Str, got {:?}",
+                            "Expected RestrictedDynamic to be applied to a Str, got {}",
                             ty
                         ), span));
                         return Err(());
@@ -1140,7 +1140,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Str(e_str) => e_str,
                     ty => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Expected Defer to be applied to a Str, got {:?}",
+                            "Expected Defer to be applied to a Str, got {}",
                             ty
                         ), span));
                         return Err(());
@@ -1240,7 +1240,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     }
                     (Ok(ste1), Ok(ste2)) => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Init requires both arguments to have the same type, got {:?} and {:?}",
+                            "Init requires both arguments to have the same type, got {} and {}",
                             ste1, ste2
                         ), span));
                         Err(())
@@ -1254,7 +1254,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Sin(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Sin can only be applied to float expressions, got {:?}",
+                            "Sin can only be applied to float expressions, got {}",
                             other
                         ), span));
                         Err(())
@@ -1267,7 +1267,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Cos(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Cos can only be applied to float expressions, got {:?}",
+                            "Cos can only be applied to float expressions, got {}",
                             other
                         ), span));
                         Err(())
@@ -1280,7 +1280,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Tan(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Tan can only be applied to float expressions, got {:?}",
+                            "Tan can only be applied to float expressions, got {}",
                             other
                         ), span));
                         Err(())
@@ -1294,7 +1294,7 @@ impl TypeCheckableHelper<SExprTE> for SpannedExpr {
                     SExprTE::Float(se) => Ok(SExprTE::Float(SExprFloat::Abs(Box::new(se)))),
                     other => {
                         errs.push(SemanticError::TypeError(format!(
-                            "Abs can only be applied to numeric expressions, got {:?}",
+                            "Abs can only be applied to numeric expressions, got {}",
                             other
                         ), span));
                         Err(())
