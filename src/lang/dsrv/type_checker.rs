@@ -7,7 +7,7 @@ use crate::core::{StreamData, StreamType, StreamTypeAscription};
 use crate::{DsrvSpecification, Specification};
 use crate::{Value, VarName};
 use std::collections::BTreeMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
 // Added span crate
@@ -73,6 +73,207 @@ fn extract_type(expr: &SExprTE) -> StreamType {
         SExprTE::Float(_) => StreamType::Float,
         SExprTE::Str(_) => StreamType::Str,
         SExprTE::Unit(_) => StreamType::Unit,
+    }
+}
+impl<T: Debug> Display for PartialStreamValue<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PartialStreamValue::Known(v) => write!(f, "{:?}", v),
+            PartialStreamValue::NoVal => write!(f, "NoVal"),
+            PartialStreamValue::Deferred => write!(f, "Deferred"),
+        }
+    }
+}
+
+impl Display for SExprTE {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SExprTE::Int(e) => write!(f, "{}", e),
+            SExprTE::Float(e) => write!(f, "{}", e),
+            SExprTE::Str(e) => write!(f, "{}", e),
+            SExprTE::Bool(e) => write!(f, "{}", e),
+            SExprTE::Unit(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl Display for SExprInt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use IntBinOp::*;
+        use SExprInt::*;
+        match self {
+            If(b, e1, e2) => write!(f, "(if {} then {} else {})", b, e1, e2),
+            SIndex(s, i) => write!(f, "{}[{}]", s, i),
+            Val(v) => write!(f, "{}", v),
+            BinOp(e1, e2, Add) => write!(f, "({} + {})", e1, e2),
+            BinOp(e1, e2, Sub) => write!(f, "({} - {})", e1, e2),
+            BinOp(e1, e2, Mul) => write!(f, "({} * {})", e1, e2),
+            BinOp(e1, e2, Div) => write!(f, "({} / {})", e1, e2),
+            BinOp(e1, e2, Mod) => write!(f, "({} % {})", e1, e2),
+            Var(v) => write!(f, "{}", v),
+            Default(e, v) => write!(f, "default({}, {})", e, v),
+            Abs(v) => write!(f, "abs({})", v),
+            Init(e1, e2) => write!(f, "init({}, {})", e1, e2),
+            Defer(e, _, _) => write!(f, "defer({}: Int)", e),
+            Dynamic(e, _) => write!(f, "dynamic({}: Int)", e),
+            RestrictedDynamic(e, env, _) => {
+                let env = env
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "dynamic({}: Int, {{{}}})", e, env)
+            }
+        }
+    }
+}
+
+impl Display for SExprFloat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use FloatBinOp::*;
+        use SExprFloat::*;
+        match self {
+            If(b, e1, e2) => write!(f, "(if {} then {} else {})", b, e1, e2),
+            SIndex(s, i) => write!(f, "{}[{}]", s, i),
+            Val(v) => write!(f, "{}", v),
+            BinOp(e1, e2, Add) => write!(f, "({} + {})", e1, e2),
+            BinOp(e1, e2, Sub) => write!(f, "({} - {})", e1, e2),
+            BinOp(e1, e2, Mul) => write!(f, "({} * {})", e1, e2),
+            BinOp(e1, e2, Div) => write!(f, "({} / {})", e1, e2),
+            BinOp(e1, e2, Mod) => write!(f, "({} % {})", e1, e2),
+            Var(v) => write!(f, "{}", v),
+            Default(e, v) => write!(f, "default({}, {})", e, v),
+            Sin(v) => write!(f, "sin({})", v),
+            Cos(v) => write!(f, "cos({})", v),
+            Tan(v) => write!(f, "tan({})", v),
+            Abs(v) => write!(f, "abs({})", v),
+            Init(e1, e2) => write!(f, "init({}, {})", e1, e2),
+            Defer(e, _, _) => write!(f, "defer({}: Float)", e),
+            Dynamic(e, _) => write!(f, "dynamic({}: Float)", e),
+            RestrictedDynamic(e, env, _) => {
+                let env = env
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "dynamic({}: Float, {{{}}})", e, env)
+            }
+        }
+    }
+}
+
+impl Display for SExprStr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use SExprStr::*;
+        match self {
+            If(b, e1, e2) => write!(f, "(if {} then {} else {})", b, e1, e2),
+            SIndex(s, i) => write!(f, "{}[{}]", s, i),
+            BinOp(e1, e2, StrBinOp::Concat) => write!(f, "({} ++ {})", e1, e2),
+            Val(v) => write!(f, "{}", v),
+            Var(v) => write!(f, "{}", v),
+            Default(e, v) => write!(f, "default({}, {})", e, v),
+            Init(e1, e2) => write!(f, "init({}, {})", e1, e2),
+            Defer(e, _, _) => write!(f, "defer({}: Str)", e),
+            Dynamic(e, _) => write!(f, "dynamic({}: Str)", e),
+            RestrictedDynamic(e, env, _) => {
+                let env = env
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "dynamic({}: Str, {{{}}})", e, env)
+            }
+        }
+    }
+}
+
+impl Display for SExprUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use SExprUnit::*;
+        match self {
+            If(b, e1, e2) => write!(f, "(if {} then {} else {})", b, e1, e2),
+            SIndex(s, i) => write!(f, "{}[{}]", s, i),
+            Val(v) => write!(f, "{}", v),
+            Var(v) => write!(f, "{}", v),
+            Default(e, v) => write!(f, "default({}, {})", e, v),
+            Init(e1, e2) => write!(f, "init({}, {})", e1, e2),
+            Defer(e, _, _) => write!(f, "defer({}: Unit)", e),
+            Dynamic(e, _) => write!(f, "dynamic({}: Unit)", e),
+            RestrictedDynamic(e, env, _) => {
+                let env = env
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "dynamic({}: Unit, {{{}}})", e, env)
+            }
+        }
+    }
+}
+
+impl Display for SExprBool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use BoolBinOp::*;
+        use SExprBool::*;
+        match self {
+            Val(v) => write!(f, "{}", v),
+
+            EqInt(e1, e2) => write!(f, "({} == {})", e1, e2),
+            EqFloat(e1, e2) => write!(f, "({} == {})", e1, e2),
+            EqStr(e1, e2) => write!(f, "({} == {})", e1, e2),
+            EqBool(e1, e2) => write!(f, "({} == {})", e1, e2),
+            EqUnit(e1, e2) => write!(f, "({} == {})", e1, e2),
+
+            LeInt(e1, e2) => write!(f, "({} <= {})", e1, e2),
+            LeFloat(e1, e2) => write!(f, "({} <= {})", e1, e2),
+            LeStr(e1, e2) => write!(f, "({} <= {})", e1, e2),
+
+            LtInt(e1, e2) => write!(f, "({} < {})", e1, e2),
+            LtFloat(e1, e2) => write!(f, "({} < {})", e1, e2),
+            LtStr(e1, e2) => write!(f, "({} < {})", e1, e2),
+
+            GeInt(e1, e2) => write!(f, "({} >= {})", e1, e2),
+            GeFloat(e1, e2) => write!(f, "({} >= {})", e1, e2),
+            GeStr(e1, e2) => write!(f, "({} >= {})", e1, e2),
+
+            GtInt(e1, e2) => write!(f, "({} > {})", e1, e2),
+            GtFloat(e1, e2) => write!(f, "({} > {})", e1, e2),
+            GtStr(e1, e2) => write!(f, "({} > {})", e1, e2),
+
+            BinOp(e1, e2, Or) => write!(f, "({} || {})", e1, e2),
+            BinOp(e1, e2, And) => write!(f, "({} && {})", e1, e2),
+            BinOp(e1, e2, Impl) => write!(f, "({} => {})", e1, e2),
+
+            Not(b) => write!(f, "!{}", b),
+            If(b, e1, e2) => write!(f, "(if {} then {} else {})", b, e1, e2),
+            SIndex(s, i) => write!(f, "{}[{}]", s, i),
+            Var(v) => write!(f, "{}", v),
+            Default(e, v) => write!(f, "default({}, {})", e, v),
+            Init(e1, e2) => write!(f, "init({}, {})", e1, e2),
+
+            IsDefinedInt(sexpr) => write!(f, "is_defined({})", sexpr),
+            IsDefinedFloat(sexpr) => write!(f, "is_defined({})", sexpr),
+            IsDefinedStr(sexpr) => write!(f, "is_defined({})", sexpr),
+            IsDefinedBool(sexpr) => write!(f, "is_defined({})", sexpr),
+            IsDefinedUnit(sexpr) => write!(f, "is_defined({})", sexpr),
+
+            WhenInt(sexpr) => write!(f, "when({})", sexpr),
+            WhenFloat(sexpr) => write!(f, "when({})", sexpr),
+            WhenStr(sexpr) => write!(f, "when({})", sexpr),
+            WhenBool(sexpr) => write!(f, "when({})", sexpr),
+            WhenUnit(sexpr) => write!(f, "when({})", sexpr),
+
+            Defer(e, _, _) => write!(f, "defer({}: Bool)", e),
+            Dynamic(e, _) => write!(f, "dynamic({}: Bool)", e),
+            RestrictedDynamic(e, env, _) => {
+                let env = env
+                    .iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "dynamic({}: Bool, {{{}}})", e, env)
+            }
+        }
     }
 }
 

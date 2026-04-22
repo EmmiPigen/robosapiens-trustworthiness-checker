@@ -1287,7 +1287,6 @@ mod tests {
     use winnow::error::ContextError;
 
     use super::*;
-    // use crate::lang::dsrv::span::strip_span;
     use test_log::test;
     // TODO: FIX tests to not use spans
     type SExpr = SpannedExpr;
