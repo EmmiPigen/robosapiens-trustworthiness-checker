@@ -1,10 +1,10 @@
 use crate::{
-    OutputStream, SExpr, VarName,
+    OutputStream, VarName,
     core::{
         AbstractMonitorBuilder, DeferrableStreamData, InputProvider, Monitor, OutputHandler,
         Runnable, Specification,
     },
-    lang::core::{DepGraph, DependencyResolver},
+    lang::{core::{DepGraph, DependencyResolver}, dsrv::ast::SpannedExpr},
     semantics::{AbstractContextBuilder, AsyncConfig, MonitoringSemantics, StreamContext},
     stream_utils::{self},
     utils::cancellation_token::CancellationToken,
@@ -25,10 +25,10 @@ use std::{
 };
 use tracing::{debug, error, info};
 use unsync::spsc;
-
+// type SExpr = SpannedExpr;
 pub struct SemiSyncMonitorBuilder<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     MS: MonitoringSemantics<AC>,
 {
     executor: Option<Rc<LocalExecutor<'static>>>,
@@ -40,7 +40,7 @@ where
 
 impl<AC, MS> AbstractMonitorBuilder<AC::Spec, AC::Val> for SemiSyncMonitorBuilder<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
 {
@@ -104,7 +104,7 @@ pub enum StreamState {
 
 pub struct ExprEvalutor<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
 {
@@ -122,7 +122,7 @@ where
 
 impl<AC, MS> ExprEvalutor<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
 {
@@ -261,7 +261,7 @@ impl<T: DeferrableStreamData> RetainedHistory<T> {
 // inside the VarManager but somewhere with logic in the context.
 struct VarManager<AC>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     AC::Val: DeferrableStreamData,
 {
     // VarName this manages
@@ -278,7 +278,7 @@ where
 
 impl<AC> VarManager<AC>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     AC::Val: DeferrableStreamData,
 {
     fn new(var_name: VarName, value_stream: OutputStream<AC::Val>) -> Self {
@@ -430,7 +430,7 @@ where
 
 pub struct SemiSyncMonitor<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     MS: MonitoringSemantics<AC>,
 {
     _executor: Rc<LocalExecutor<'static>>,
@@ -442,7 +442,7 @@ where
 
 impl<AC, MS> SemiSyncMonitor<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
 {
@@ -721,7 +721,7 @@ where
 
 impl<AC, MS> Monitor<AC::Spec, AC::Val> for SemiSyncMonitor<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
 {
@@ -733,7 +733,7 @@ where
 #[async_trait(?Send)]
 impl<AC, MS> Runnable for SemiSyncMonitor<AC, MS>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
 {
@@ -762,7 +762,7 @@ where
 
 pub struct SemiSyncContextBuilder<AC>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     AC::Val: DeferrableStreamData,
 {
     var_managers: Option<BTreeMap<VarName, VarManager<AC>>>,
@@ -771,7 +771,7 @@ where
 
 impl<AC> SemiSyncContextBuilder<AC>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     AC::Val: DeferrableStreamData,
 {
     fn var_managers(self, var_managers: BTreeMap<VarName, VarManager<AC>>) -> Self {
@@ -790,7 +790,7 @@ where
 
 impl<AC> AbstractContextBuilder for SemiSyncContextBuilder<AC>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
 {
     type AC = AC;
@@ -843,7 +843,7 @@ static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize:
 
 pub struct SemiSyncContext<AC>
 where
-    AC: AsyncConfig<Expr = SExpr>,
+    AC: AsyncConfig<Expr = SpannedExpr>,
     AC::Val: DeferrableStreamData,
 {
     // Rc RefCell because of the StreamContext interface for Var...
@@ -859,7 +859,7 @@ where
 
 impl<AC> SemiSyncContext<AC>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
 {
     fn new(var_managers: Rc<RefCell<BTreeMap<VarName, VarManager<AC>>>>, spec: AC::Spec) -> Self {
@@ -897,7 +897,7 @@ where
             manager: &mut VarManager<AC>,
         ) -> anyhow::Result<StreamState>
         where
-            AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+            AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
             AC::Val: DeferrableStreamData,
         {
             match manager.forward_value().await {
@@ -1013,7 +1013,7 @@ where
 #[async_trait(?Send)]
 impl<AC> StreamContext for SemiSyncContext<AC>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
 {
     type AC = AC;

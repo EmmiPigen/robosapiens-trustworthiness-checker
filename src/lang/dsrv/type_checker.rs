@@ -12,7 +12,6 @@ use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
 // Added span crate
-use crate::lang::dsrv::span::Span;
 
 #[derive(Debug, PartialEq, Eq)]
 // Added span information to errors for LSP

@@ -242,7 +242,7 @@ fn sexpr_dependencies(sexpr: &SExpr, root_name: &Node) -> DepGraph {
         }
     }
 
-    debug!("sexr_dependencies for {}: {}", root_name, sexpr);
+    debug!("sexr_dependencies for {}: {:?}", root_name, sexpr);
     let mut graph = DepGraph::empty_graph();
     let root_node = graph.graph.add_node(root_name.clone());
     deps_impl(sexpr, &mut vec![], &mut graph, &root_node, 0);

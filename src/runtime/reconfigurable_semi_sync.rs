@@ -1,5 +1,5 @@
 use crate::{
-    OutputStream, SExpr, Value, VarName,
+    OutputStream, Value, VarName,
     core::{
         AbstractMonitorBuilder, DeferrableStreamData, InputProvider, OutputHandler, Runnable,
         Specification,
@@ -11,7 +11,7 @@ use crate::{
         },
         testing::ManualInputProvider,
     },
-    lang::core::parser::SpecParser,
+    lang::{core::parser::SpecParser, dsrv::ast::SpannedExpr},
     runtime::semi_sync::{ExprEvalutor, SemiSyncContext, SemiSyncMonitor, SemiSyncMonitorBuilder},
     semantics::{AsyncConfig, MonitoringSemantics},
 };
@@ -45,7 +45,7 @@ struct ReconfInput {
 #[derive(Clone)]
 pub struct ReconfSemiSyncMonitorBuilder<AC, MS, P>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
     P: SpecParser<AC::Spec>,
@@ -65,7 +65,7 @@ where
 impl<AC, MS, P> AbstractMonitorBuilder<AC::Spec, AC::Val>
     for ReconfSemiSyncMonitorBuilder<AC, MS, P>
 where
-    AC: AsyncConfig<Expr = SExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
     P: SpecParser<AC::Spec>,
@@ -169,7 +169,7 @@ where
 
 impl<AC, MS, P> ReconfSemiSyncMonitorBuilder<AC, MS, P>
 where
-    AC: AsyncConfig<Expr = SExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
     P: SpecParser<AC::Spec>,
@@ -289,7 +289,7 @@ where
 
 pub struct ReconfSemiSyncMonitor<AC, MS, P>
 where
-    AC: AsyncConfig<Expr = SExpr, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
     P: SpecParser<AC::Spec>,
@@ -304,7 +304,7 @@ where
 
 impl<AC, MS, P> ReconfSemiSyncMonitor<AC, MS, P>
 where
-    AC: AsyncConfig<Expr = SExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
     P: SpecParser<AC::Spec>,
@@ -584,7 +584,7 @@ where
 #[async_trait(?Send)]
 impl<AC, MS, P> Runnable for ReconfSemiSyncMonitor<AC, MS, P>
 where
-    AC: AsyncConfig<Expr = SExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
+    AC: AsyncConfig<Expr = SpannedExpr, Val = Value, Ctx = SemiSyncContext<AC>>,
     AC::Val: DeferrableStreamData,
     MS: MonitoringSemantics<AC>,
     P: SpecParser<AC::Spec>,
