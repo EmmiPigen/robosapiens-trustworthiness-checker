@@ -1,6 +1,7 @@
 use ecow::{EcoString, EcoVec};
 use serde;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::ops::{Deref, Range};
 
 use crate::core::{StreamTypeAscription, Value, VarName};
@@ -21,6 +22,12 @@ impl Span {
     pub fn new(start: u32, end: u32) -> Self {
         Self { start, end }
     }
+  }
+  
+impl fmt::Display for Span {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      write!(f, "{}:{}", self.start, self.end)
+  }
 }
 
 impl From<Range<usize>> for Span {

@@ -120,6 +120,19 @@ impl From<&str> for SBinOp {
     }
 }
 
+impl Display for SBinOp {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    use SBinOp::*;
+    match self {
+      NOp(e) => write!(f, "Numerical {:?}", e),
+      BOp(e) => write!(f, "Boolean {:?}", e),
+      SOp(e) => write!(f, "String {:?}", e),
+      COp(e) => write!(f, "Comparison {:?}", e),
+    }      
+  }
+}
+
+
 #[derive(Clone, PartialEq, Debug, serde::Serialize)]
 pub struct VarOrNodeName(pub String);
 
