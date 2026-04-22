@@ -535,7 +535,7 @@ mod tests {
     fn test_add_dep_simple() {
         let mut spec = specs()["single_no_inp"];
         let spec = test_parser(&mut spec).unwrap();
-        let mut dep = DepGraph::resolver_from_sexprs::<TestConfig>(spec.exprs);
+        let mut dep = DepGraph::resolver_from_spec::<TestConfig>(spec);
         dep.add_dependency(&"new".into(), &SpannedExpr::Val(42));
         let graph = get_graph(dep);
         assert_eq!(graph.node_count(), 2);
@@ -546,7 +546,7 @@ mod tests {
     fn test_add_dep_new_edge() {
         let mut spec = specs()["single_no_inp"];
         let spec = test_parser(&mut spec).unwrap();
-        let mut dep = DepGraph::resolver_from_sexprs::<TestConfig>(spec.exprs);
+        let mut dep = DepGraph::resolver_from_spec::<TestConfig>(spec);
         dep.add_dependency(&"a".into(), &SpannedExpr::Var("x".into()));
         let graph = get_graph(dep);
         assert_eq!(graph.node_count(), 2);
@@ -562,7 +562,7 @@ mod tests {
     fn test_add_dep_new_edge_existing() {
         let mut spec = specs()["multi_dependent"];
         let spec = test_parser(&mut spec).unwrap();
-        let mut dep = DepGraph::resolver_from_sexprs::<TestConfig>(spec.exprs);
+        let mut dep = DepGraph::resolver_from_spec::<TestConfig>(spec);
         dep.add_dependency(&"a".into(), &SpannedExpr::Var("y".into()));
         let graph = get_graph(dep);
         assert_eq!(graph.node_count(), 3);
@@ -585,7 +585,7 @@ mod tests {
     fn test_add_dep_add_weight() {
         let mut spec = specs()["multi_dependent"];
         let spec = test_parser(&mut spec).unwrap();
-        let mut dep = DepGraph::resolver_from_sexprs::<TestConfig>(spec.exprs);
+        let mut dep = DepGraph::resolver_from_spec::<TestConfig>(spec);
         dep.add_dependency(&"x".into(), &SpannedExpr::Var("a".into()));
         let graph = get_graph(dep);
         assert_eq!(graph.node_count(), 3);
@@ -621,7 +621,7 @@ mod tests {
         // Case where the last weight is removed so we remove the entire edge
         let mut spec = specs()["multi_dependent"];
         let spec = test_parser(&mut spec).unwrap();
-        let mut dep = DepGraph::resolver_from_sexprs::<TestConfig>(spec.exprs);
+        let mut dep = DepGraph::resolver_from_spec::<TestConfig>(spec);
         dep.remove_dependency(&"y".into(), &SpannedExpr::Var("x".into()));
         let graph = get_graph(dep);
         assert_eq!(graph.node_count(), 3);
@@ -640,7 +640,7 @@ mod tests {
         // Case where we still have a weight left after removing dependency
         let mut spec = specs()["multi_same_dependent"];
         let spec = test_parser(&mut spec).unwrap();
-        let mut dep = DepGraph::resolver_from_sexprs::<TestConfig>(spec.exprs);
+        let mut dep = DepGraph::resolver_from_spec::<TestConfig>(spec);
         dep.remove_dependency(&"x".into(), &SpannedExpr::Var("a".into()));
         let graph = get_graph(dep);
         assert_eq!(graph.node_count(), 2);
