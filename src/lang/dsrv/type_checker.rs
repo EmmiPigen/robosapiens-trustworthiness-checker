@@ -818,7 +818,7 @@ impl TypeCheckableHelper<SExprTE> for (SBinOp, &SpannedExpr, &SpannedExpr) {
             // Any other case where sub-expressions are Ok, but `op` is not supported
             (_, Ok(ste1), Ok(ste2)) => {
                 errs.push(SemanticError::TypeError(format!(
-                    "Cannot apply binary function {:?} to expressions of type {} and {}",
+                    "Cannot apply binary function {} to expressions of type {} and {}",
                     op, ste1, ste2
                 ), span));
                 Err(())
