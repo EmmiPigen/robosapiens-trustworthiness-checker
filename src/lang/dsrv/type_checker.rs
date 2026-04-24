@@ -844,6 +844,10 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr) {
                         Box::new(se1.clone()),
                         Box::new(se2.clone()),
                     ))),
+                    (SExprTE::Float(se1), SExprTE::Float(se2)) => Ok(SExprTE::Float(SExprFloat::Default( 
+                      Box::new(se1.clone()), 
+                      Box::new(se2.clone()),
+                    ))),
                     (SExprTE::Str(se1), SExprTE::Str(se2)) => Ok(SExprTE::Str(SExprStr::Default(
                         Box::new(se1.clone()),
                         Box::new(se2.clone()),
@@ -854,10 +858,6 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr) {
                     (SExprTE::Unit(se1), SExprTE::Unit(se2)) => Ok(SExprTE::Unit(
                         SExprUnit::Default(Box::new(se1.clone()), Box::new(se2.clone())),
                     )),
-                    (SExprTE::Float(se1), SExprTE::Float(se2)) => Ok(SExprTE::Float(SExprFloat::Default( 
-                      Box::new(se1.clone()), 
-                      Box::new(se2.clone()),
-                    ))),
                     (stenum1, stenum2) => {
                         errs.push(SemanticError::TypeError(format!(
                             "Cannot create default-expression with two different types: {} and {}",
