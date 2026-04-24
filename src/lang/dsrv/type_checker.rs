@@ -844,10 +844,6 @@ impl TypeCheckableHelper<SExprTE> for (&SpannedExpr, &SpannedExpr) {
                         Box::new(se1.clone()),
                         Box::new(se2.clone()),
                     ))),
-                    (SExprTE::Float(se1), SExprTE::Float(se2)) => Ok(SExprTE::Float(SExprFloat::Default( 
-                      Box::new(se1.clone()), 
-                      Box::new(se2.clone()),
-                    ))),
                     (SExprTE::Str(se1), SExprTE::Str(se2)) => Ok(SExprTE::Str(SExprStr::Default(
                         Box::new(se1.clone()),
                         Box::new(se2.clone()),
