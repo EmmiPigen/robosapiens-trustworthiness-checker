@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::collections::BTreeMap;
 use ecow::{EcoString, EcoVec};
 
-use crate::lang::dsrv::ast::{SExpr, STopDecl, SBinOp, NumericalBinOp, CompBinOp, BoolBinOp, StrBinOp, SpannedExpr};
+use crate::lang::dsrv::ast::{SExpr, STopDecl, SBinOp, NumericalBinOp, CompBinOp, BoolBinOp, StrBinOp, SpannedExpr, VarOrNodeName};
 use crate::core::{Value, VarName, StreamType, StreamTypeAscription};
 use crate::lang::dsrv::span::{Spanned, Span};
 
