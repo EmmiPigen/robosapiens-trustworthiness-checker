@@ -21,7 +21,7 @@ pub type LabelledDistGraphStream = OutputStream<Rc<LabelledDistributionGraph>>;
 pub type DistGraphStream = OutputStream<Rc<DistributionGraph>>;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug, Default, Ord, PartialOrd)]
-pub struct NodeName(String);
+pub struct NodeName(pub String);
 
 impl NodeName {
     pub fn new(name: impl Into<String>) -> Self {
